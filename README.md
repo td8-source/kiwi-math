@@ -64,10 +64,10 @@ Sync is offline-first. Saves stay local and are merged with the cloud copy on st
 2. In the project's **SQL Editor**, paste and run `supabase/schema.sql`. This creates the tables, row-level security and the two family-code functions.
 3. Optional: under **Authentication → Providers → Email**, turn off "Confirm email" if you would rather parents can sign in immediately without a confirmation link.
 4. Under **Project Settings → API**, copy the **Project URL** and the **anon public** key. The anon key is meant to be public; row-level security protects each account's data.
-5. For the GitHub Pages and macOS builds, add both values as repository **Variables** (Settings → Secrets and variables → Actions → Variables) named `SUPABASE_URL` and `SUPABASE_ANON_KEY`, then push or re-run the workflows.
-6. For local development, copy `.env.example` to `.env.local` and fill in the same two values.
+5. Put both values in the committed `.env` file as `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Every build (local, GitHub Pages and the macOS app) reads them from there. To point a CI build at a different project without editing the file, set repository **Variables** named `SUPABASE_URL` and `SUPABASE_ANON_KEY`, which take precedence.
+6. For a private local override, copy `.env.example` to `.env.local`; that file is ignored by git.
 
-Builds without these values still work; the Cloud tab just explains that sync is not set up.
+The publishable (anon) key is safe to commit: it is embedded in the browser build anyway, and row-level security decides what it can read. Never commit the service-role key. Builds without any values still work; the Cloud tab just explains that sync is not set up.
 
 What is stored in the cloud: each explorer's first name, age, avatar, settings and progress, plus the parent PIN so it applies on every device. Nothing else.
 

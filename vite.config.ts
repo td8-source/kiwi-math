@@ -6,6 +6,12 @@ import { defineConfig } from "vite";
 // Locally and in the Tauri build it stays "/".
 const base = process.env.GH_PAGES === "true" ? "/Nature-Math/" : "/";
 
+// CI passes the Supabase settings through env; when they are unset there they arrive as
+// empty strings, which must not shadow values from a local .env file.
+for (const key of ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"]) {
+  if (process.env[key] === "") delete process.env[key];
+}
+
 export default defineConfig({
   base,
   clearScreen: false,

@@ -6,8 +6,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { familyCodeHash } from "./familycode";
 
-const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "";
-const KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? "";
+/** Accepts the plain project URL or a pasted REST endpoint like https://ref.supabase.co/rest/v1/. */
+function projectUrl(raw: string | undefined): string {
+  return (raw ?? "").trim().replace(/\/(rest|auth|storage|realtime|functions)\/v1\/?$/, "").replace(/\/+$/, "");
+}
+
+const URL = projectUrl(import.meta.env.VITE_SUPABASE_URL);
+const KEY = ((import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? "").trim();
 
 export function cloudConfigured(): boolean {
   return /^https:\/\/.+/.test(URL) && KEY.length > 20;
