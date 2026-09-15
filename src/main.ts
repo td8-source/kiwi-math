@@ -1,0 +1,73 @@
+import "./styles/main.css";
+import { loadState, saveState } from "./app/storage";
+import type { AppState, Profile } from "./app/state";
+import type { Ctx, Route } from "./app/context";
+import { setSoundEnabled } from "./app/audio";
+import { cancelSpeech, setNarrationEnabled } from "./app/speech";
+import { timeIsUp } from "./app/timer";
+import { renderProfiles, renderNewProfile } from "./screens/profiles";
+import { renderMap } from "./screens/map";
+import { renderRegion } from "./screens/region";
+import { renderPlay } from "./screens/play";
+import { renderShop } from "./screens/shop";
+import { renderParent } from "./screens/parent";
+import { renderTimeUp } from "./screens/timeup";
+
+async function boot(): Promise<void> {
+  const root = document.getElementById("app");
+  if (!root) throw new Error("Missing #app root");
+  const state: AppState = await loadState();
+
+  const ctx: Ctx = {
+    state,
+    root,
+    route: { name: "profiles" },
+    currentProfile(): Profile | null {
+      return state.profiles.find((p) => p.id === state.currentProfileId) ?? null;
+    },
+    profile(): Profile {
+      const p = this.currentProfile();
+      if (!p) throw new Error("No profile selected");
+      return p;
+    },
+    save() {
+      applySettings();
+      void saveState(state);
+    },
+    go(route: Route) {
+      render(route);
+    },
+  };
+
+  function applySettings(): void {
+    setSoundEnabled(state.settings.sound);
+    const p = ctx.currentProfile();
+    setNarrationEnabled(p ? p.settings.narration : false);
+  }
+
+  function render(route: Route): void {
+    const needsProfile = !["profiles", "new-profile", "parent"].includes(route.name);
+    if (needsProfile && !ctx.currentProfile()) route = { name: "profiles" };
+    // The daily limit blocks play and the map, but never the parent area or profile picker.
+    const p = ctx.currentProfile();
+    if (p && (route.name === "play" || route.name === "map" || route.name === "region" || route.name === "shop") && timeIsUp(p)) route = { name: "timeup" };
+    cancelSpeech();
+    applySettings();
+    ctx.route = route;
+    window.scrollTo(0, 0);
+    switch (route.name) {
+      case "profiles": return renderProfiles(ctx);
+      case "new-profile": return renderNewProfile(ctx);
+      case "map": return renderMap(ctx);
+      case "region": return renderRegion(ctx, route.regionId);
+      case "play": return renderPlay(ctx, route);
+      case "shop": return renderShop(ctx);
+      case "parent": return renderParent(ctx);
+      case "timeup": return renderTimeUp(ctx);
+    }
+  }
+
+  render(ctx.currentProfile() ? { name: "map" } : { name: "profiles" });
+}
+
+void boot();

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#bae6fd"/></linearGradient>
+    <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#15803d"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#sky)"/>
+  <circle cx="790" cy="230" r="100" fill="#fde047"/>
+  <path d="M0 700 C 200 520, 380 560, 512 640 S 820 560, 1024 680 V1024 H0z" fill="url(#hill)"/>
+  <path d="M0 820 C 220 700, 420 760, 560 800 S 860 720, 1024 800 V1024 H0z" fill="#166534"/>
+  <!-- kiwi -->
+  <g transform="translate(330 560) scale(1.9)">
+    <ellipse cx="120" cy="120" rx="95" ry="70" fill="#7c4a1e"/>
+    <circle cx="205" cy="80" r="42" fill="#7c4a1e"/>
+    <circle cx="218" cy="70" r="8" fill="#fff"/><circle cx="220" cy="71" r="4" fill="#000"/>
+    <path d="M240 84 L360 100 L240 108z" fill="#f59e0b"/>
+    <path d="M85 185 v45 M105 185 v45 M140 185 v45 M160 185 v45" stroke="#f59e0b" stroke-width="12" stroke-linecap="round"/>
+    <path d="M40 90 c30-40 80-50 130-30" stroke="#5b3413" stroke-width="10" fill="none" stroke-linecap="round"/>
+  </g>
+  <text x="512" y="960" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-size="150" font-weight="900" fill="#fff">1 2 3</text>
+</svg>

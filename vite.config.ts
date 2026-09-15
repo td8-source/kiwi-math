@@ -1,0 +1,26 @@
+import { defineConfig } from "vite";
+
+// Tauri expects a fixed port and no HMR overlay stealing focus from the game.
+// When built for GitHub Pages the app is served from a subpath
+// (https://<user>.github.io/<repo>/), so assets need that prefix baked in.
+// Locally and in the Tauri build it stays "/".
+const base = process.env.GH_PAGES === "true" ? "/Nature-Math/" : "/";
+
+export default defineConfig({
+  base,
+  clearScreen: false,
+  server: {
+    port: 1420,
+    strictPort: true,
+    host: "127.0.0.1",
+  },
+  build: {
+    target: ["es2022", "safari15"],
+    minify: true,
+    sourcemap: false,
+  },
+  test: {
+    environment: "jsdom",
+    include: ["tests/**/*.test.ts"],
+  },
+});
