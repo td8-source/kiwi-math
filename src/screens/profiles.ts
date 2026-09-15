@@ -6,6 +6,7 @@ import { avatarSvg, logoSvg } from "../ui/art";
 import { delegate, html } from "../ui/html";
 import { totalStars } from "../app/progress";
 import { findItem } from "../app/shop";
+import { cloudConfigured } from "../app/cloud";
 
 export function renderProfiles(ctx: Ctx): void {
   const el = mount(ctx, "profiles-screen");
@@ -33,11 +34,13 @@ export function renderProfiles(ctx: Ctx): void {
       </button>
     </div>
     <footer class="screen-footer">
+      ${cloudConfigured() && ctx.state.sync.mode === "none" ? html`<button class="btn ghost small" data-action="link">Sign in or link this device</button>` : ""}
       <button class="btn ghost small" data-action="parent">Parents &amp; teachers</button>
     </footer>
   `.value;
 
   delegate(el, {
+    link() { ctx.go({ name: "link" }); },
     pick(target) {
       sfx.tap();
       ctx.state.currentProfileId = target.dataset.id ?? null;
@@ -118,7 +121,8 @@ export function renderNewProfile(ctx: Ctx): void {
     ctx.state.currentProfileId = profile.id;
     ctx.save();
     sfx.fanfare();
-    ctx.go({ name: "map" });
+    const firstExplorer = ctx.state.profiles.length === 1;
+    ctx.go(firstExplorer && cloudConfigured() && ctx.state.sync.mode === "none" ? { name: "save-online" } : { name: "map" });
   };
 
   delegate(el, {

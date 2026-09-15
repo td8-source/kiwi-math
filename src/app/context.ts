@@ -2,6 +2,9 @@ import type { Tier } from "../curriculum/types";
 import type { AppState, Profile } from "./state";
 
 export type Route =
+  | { name: "welcome" }
+  | { name: "link" }
+  | { name: "save-online" }
   | { name: "profiles" }
   | { name: "new-profile" }
   | { name: "map" }

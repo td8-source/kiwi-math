@@ -15,6 +15,7 @@ import { renderPlay } from "./screens/play";
 import { renderShop } from "./screens/shop";
 import { renderParent } from "./screens/parent";
 import { renderTimeUp } from "./screens/timeup";
+import { renderLink, renderSaveOnline, renderWelcome } from "./screens/welcome";
 
 async function boot(): Promise<void> {
   const root = document.getElementById("app");
@@ -52,8 +53,10 @@ async function boot(): Promise<void> {
   }
 
   function render(route: Route): void {
-    const needsProfile = !["profiles", "new-profile", "parent"].includes(route.name);
+    const needsProfile = !["profiles", "new-profile", "parent", "welcome", "link"].includes(route.name);
     if (needsProfile && !ctx.currentProfile()) route = { name: "profiles" };
+    // With no explorers on this device yet, the picker becomes the welcome screen.
+    if (route.name === "profiles" && state.profiles.length === 0) route = { name: "welcome" };
     // The daily limit blocks play and the map, but never the parent area or profile picker.
     const p = ctx.currentProfile();
     if (p && (route.name === "play" || route.name === "map" || route.name === "region" || route.name === "shop") && timeIsUp(p)) route = { name: "timeup" };
@@ -62,6 +65,9 @@ async function boot(): Promise<void> {
     ctx.route = route;
     window.scrollTo(0, 0);
     switch (route.name) {
+      case "welcome": return renderWelcome(ctx);
+      case "link": return renderLink(ctx);
+      case "save-online": return renderSaveOnline(ctx);
       case "profiles": return renderProfiles(ctx);
       case "new-profile": return renderNewProfile(ctx);
       case "map": return renderMap(ctx);
@@ -88,7 +94,7 @@ async function boot(): Promise<void> {
   });
 
   const recovery = await passwordRecoveryPending();
-  render(recovery ? { name: "parent" } : ctx.currentProfile() ? { name: "map" } : { name: "profiles" });
+  render(recovery ? { name: "link" } : ctx.currentProfile() ? { name: "map" } : { name: "profiles" });
   void syncNow();
 }
 

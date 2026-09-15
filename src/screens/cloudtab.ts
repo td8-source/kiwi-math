@@ -128,7 +128,7 @@ function field(el: HTMLElement, name: string): string {
   return (el.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value ?? "").trim();
 }
 
-export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: () => void): Record<string, (el: HTMLElement) => void> {
+export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: () => void, opts: { onLinked?: () => void } = {}): Record<string, (el: HTMLElement) => void> {
   const remember = (): void => {
     ui.email = field(root, "email") || ui.email;
     ui.code = field(root, "code") || ui.code;
@@ -145,14 +145,17 @@ export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: 
       ui.error = err instanceof Error ? err.message : "Something went wrong.";
     }
     ui.busy = false;
-    redraw();
+    if (document.body.contains(root)) redraw();
   };
   const link = async (mode: "account" | "family", extra: Partial<typeof ctx.state.sync>): Promise<void> => {
     ctx.state.sync = { mode, ...extra };
     ctx.save();
     await syncNow();
     if (ctx.state.sync.lastError) ui.error = ctx.state.sync.lastError;
-    else ui.message = "Synced. Explorer profiles from your other devices are now here too.";
+    else {
+      ui.message = "Synced. Explorer profiles from your other devices are now here too.";
+      opts.onLinked?.();
+    }
   };
   return {
     "cloud-view"(t) { ui.view = (t.dataset.view as CloudUi["view"]) ?? "menu"; ui.error = ""; ui.message = ""; redraw(); },
@@ -217,8 +220,11 @@ export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: 
     "cloud-family-create"() {
       void run(async () => {
         const code = generateFamilyCode();
-        await link("family", { familyCode: code });
-        if (!ctx.state.sync.lastError) { ui.newCode = code; ui.showCode = true; ui.message = ""; }
+        ctx.state.sync = { mode: "family", familyCode: code };
+        ctx.save();
+        await syncNow();
+        if (ctx.state.sync.lastError) ui.error = ctx.state.sync.lastError;
+        else { ui.newCode = code; ui.showCode = true; ui.message = ""; }
       });
     },
     "cloud-syncnow"() {

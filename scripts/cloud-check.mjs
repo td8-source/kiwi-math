@@ -64,7 +64,7 @@ async function newDevice(name) {
   // Deliberately wrong passwords and unknown codes produce expected 4xx responses.
   page.on("console", (m) => { if (m.type() === "error" && !/status of 4\d\d/.test(m.text())) errors.push(`${name} console: ${m.text()}`); });
   await page.goto("http://127.0.0.1:4180/");
-  await page.waitForSelector(".profile-grid, .land");
+  await page.waitForSelector(".welcome-options, .profile-grid, .land");
   return page;
 }
 async function createExplorer(page, name, age) {
@@ -72,6 +72,8 @@ async function createExplorer(page, name, age) {
   await page.fill("input[name=name]", name);
   await page.click(`[data-action="age"][data-age="${age}"]`);
   await page.click('[data-action="create"]');
+  await page.waitForSelector(".save-online, .land");
+  if (await page.$(".save-online")) await page.click('[data-action="later"]');
   await page.waitForSelector(".land");
 }
 async function playBronze(page) {
@@ -118,8 +120,10 @@ await a.waitForSelector(".sync-pill");
 expect(await a.$eval(".sync-pill", (el) => el.dataset.status) === "idle", "header shows cloud sync up to date");
 
 const b = await newDevice("B");
-await createExplorer(b, "Tama", 5);
-await openCloudTab(b);
+await b.screenshot({ path: join(OUT, "46-welcome.png") });
+await b.click('[data-action="link"]');
+await b.waitForSelector(".link-card");
+await b.screenshot({ path: join(OUT, "47-link-screen.png") });
 await b.click('[data-action="cloud-view"][data-view="family"]');
 await b.fill("input[name=code]", "wrong-words-here-now-000000");
 await b.click('[data-action="cloud-family-join"]');
@@ -127,16 +131,27 @@ await b.waitForSelector(".cloud-error");
 expect((await b.textContent(".cloud-error")).includes("No family was found"), "device B rejects an unknown code");
 await b.fill("input[name=code]", code.toUpperCase().replace(/-/g, " "));
 await b.click('[data-action="cloud-family-join"]');
-await b.waitForSelector(".cloud-message");
+await b.waitForSelector(".profile-grid");
 await b.screenshot({ path: join(OUT, "42-cloud-family-linked.png") });
-await b.click('[data-action="back"]');
+let namesB = await b.$$eval(".profile-card .profile-name", (els) => els.map((e) => e.textContent.trim()));
+expect(namesB.includes("Aroha"), `device B landed on the explorer picker with Aroha (${namesB.join(", ")})`);
+await b.click('[data-action="new"]');
+await b.fill("input[name=name]", "Tama");
+await b.click('[data-action="age"][data-age="5"]');
+await b.click('[data-action="create"]');
 await b.waitForSelector(".land");
 await b.click('[data-action="switch"]');
 await b.waitForSelector(".profile-grid");
-const namesB = await b.$$eval(".profile-card .profile-name", (els) => els.map((e) => e.textContent.trim()));
+namesB = await b.$$eval(".profile-card .profile-name", (els) => els.map((e) => e.textContent.trim()));
 expect(namesB.includes("Aroha") && namesB.includes("Tama"), `device B now has both explorers (${namesB.join(", ")})`);
+expect(!(await b.$('[data-action="link"]')), "picker hides the link button once the device is linked");
 const starsB = await b.$$eval(".profile-card", (els) => els.map((e) => e.textContent));
 expect(starsB.some((t) => t.includes("Aroha") && /★ [1-3]/.test(t)), "Aroha's stars from device A arrived on device B");
+
+// Device B's push is debounced; wait for it to reach the cloud before device A syncs.
+const pushesBefore = calls.filter((c) => c.includes("family_push")).length;
+for (let i = 0; i < 40 && calls.filter((c) => c.includes("family_push")).length === pushesBefore; i++) await b.waitForTimeout(250);
+expect(calls.filter((c) => c.includes("family_push")).length > pushesBefore, "device B pushed Tama within a few seconds of creating the explorer");
 
 // Device A syncs and receives Tama.
 await a.reload();
@@ -161,7 +176,8 @@ expect(cloud.saves.size === 1, "device C pushed its save under the parent accoun
 await c.screenshot({ path: join(OUT, "44-cloud-account-linked.png") });
 
 const d = await newDevice("D");
-await openCloudTab(d);
+await d.click('[data-action="link"]');
+await d.waitForSelector(".link-card");
 await d.click('[data-action="cloud-view"][data-view="account"]');
 await d.fill("input[name=email]", "parent@example.com");
 await d.fill("input[name=password]", "wrong");
@@ -170,8 +186,6 @@ await d.waitForSelector(".cloud-error");
 expect((await d.textContent(".cloud-error")).includes("not right"), "device D rejects a wrong password");
 await d.fill("input[name=password]", "kiwi-pass-123");
 await d.click('[data-action="cloud-signin"]');
-await d.waitForSelector(".cloud-message");
-await d.click('[data-action="back"]');
 await d.waitForSelector(".profile-grid");
 const namesD = await d.$$eval(".profile-card .profile-name", (els) => els.map((e) => e.textContent.trim()));
 expect(namesD.includes("Mia"), `device D received Mia after signing in (${namesD.join(", ")})`);

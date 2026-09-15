@@ -24,8 +24,8 @@ page.on("console", (m) => { if (m.type() === "error") console.error("CONSOLE", m
 const shot = (name) => page.screenshot({ path: join(OUT, `${name}.png`) });
 
 await page.goto("http://127.0.0.1:4173/");
-await page.waitForSelector(".profile-grid");
-await shot("01-profiles");
+await page.waitForSelector(".welcome-options");
+await shot("00-welcome");
 
 await page.click('[data-action="new"]');
 await page.fill("input[name=name]", "Aroha");
@@ -33,8 +33,15 @@ await page.click('[data-action="age"][data-age="6"]');
 await page.click('[data-action="character"][data-i="4"]');
 await shot("02-new-profile");
 await page.click('[data-action="create"]');
+await page.waitForSelector(".save-online, .land");
+if (await page.$(".save-online")) { await shot("02b-save-online"); await page.click('[data-action="later"]'); }
 await page.waitForSelector(".land");
 await shot("03-map");
+await page.click('[data-action="switch"]');
+await page.waitForSelector(".profile-grid");
+await shot("01-profiles");
+await page.click(".profile-card");
+await page.waitForSelector(".land");
 
 await page.click(".region-card.pos-0");
 await page.waitForSelector(".trail-list");
