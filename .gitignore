@@ -5,3 +5,5 @@ src-tauri/gen/schemas/
 screenshots/
 *.log
 .DS_Store
+.env.local
+.env

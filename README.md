@@ -47,12 +47,40 @@ npm run dev           # http://localhost:1420
 
 `.github/workflows/deploy-pages.yml` publishes the browser version to GitHub Pages on every push to `main`. Enable Pages with Source set to GitHub Actions in the repository settings if it is not already.
 
+## Cloud sync: continue on other devices
+
+By default progress stays on the device. Optional cloud sync lets a family continue on any device or browser. It uses a free [Supabase](https://supabase.com) project that you own, so the data is yours.
+
+Two ways to link devices, chosen in the parent area under **Cloud**:
+
+- **Parent account**: email and password, with password reset by email. Children never need a login; one parent account holds every explorer profile. Recommended.
+- **Family code**: no email needed. The app generates a secret like `kiwi-fern-river-mist-123456`; enter it on another device to link them. Anyone with the code can see and change the progress, and a lost code cannot be recovered, so treat it like a password.
+
+Sync is offline-first. Saves stay local and are merged with the cloud copy on start-up, after each round, and when you press Sync now. Stars, best scores, feathers and gear are combined so nothing earned is lost when two devices disagree; other settings take the newer copy.
+
+### Setting it up (about 10 minutes, once)
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. In the project's **SQL Editor**, paste and run `supabase/schema.sql`. This creates the tables, row-level security and the two family-code functions.
+3. Optional: under **Authentication → Providers → Email**, turn off "Confirm email" if you would rather parents can sign in immediately without a confirmation link.
+4. Under **Project Settings → API**, copy the **Project URL** and the **anon public** key. The anon key is meant to be public; row-level security protects each account's data.
+5. For the GitHub Pages and macOS builds, add both values as repository **Variables** (Settings → Secrets and variables → Actions → Variables) named `SUPABASE_URL` and `SUPABASE_ANON_KEY`, then push or re-run the workflows.
+6. For local development, copy `.env.example` to `.env.local` and fill in the same two values.
+
+Builds without these values still work; the Cloud tab just explains that sync is not set up.
+
+What is stored in the cloud: each explorer's first name, age, avatar, settings and progress, plus the parent PIN so it applies on every device. Nothing else.
+
 ## Development
 
 ```bash
 npm test              # generator, progression, timer and migration tests
 npm run typecheck
 npm run build && npm run screenshots   # headless walkthrough, images in ./screenshots
+
+# Multi-device cloud sync check against a mocked Supabase (no project needed):
+VITE_SUPABASE_URL=https://mock.supabase.co VITE_SUPABASE_ANON_KEY=mock-anon-key-0123456789abcdef npm run build
+npm run cloud:check
 ```
 
 ## Project layout

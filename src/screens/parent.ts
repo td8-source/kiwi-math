@@ -5,9 +5,11 @@ import { accuracy, trailResult, regionStars, regionUnlocked, totalStars, rescued
 import { grantBonusMinutes, playedTodayMs, remainingTodayMs } from "../app/timer";
 import type { Profile } from "../app/state";
 import { avatarSvg, starSvg } from "../ui/art";
+import { touch } from "../app/state";
+import { cloudHandlers, cloudTab, detectRecovery, initialCloudUi } from "./cloudtab";
 import { delegate, formatDate, formatDuration, html } from "../ui/html";
 
-type Tab = "overview" | "curriculum" | "sessions" | "settings";
+type Tab = "overview" | "curriculum" | "sessions" | "settings" | "cloud";
 const STRANDS: Strand[] = ["number", "algebra", "measurement", "geometry", "statistics", "probability"];
 const LIMITS = [0, 10, 15, 20, 30, 45, 60];
 
@@ -20,6 +22,7 @@ export function renderParent(ctx: Ctx): void {
   let tab: Tab = "overview";
   let selectedId: string | null = ctx.state.currentProfileId ?? ctx.state.profiles[0]?.id ?? null;
   let confirmAction: null | { kind: "reset" | "delete"; id: string } = null;
+  const cloudUi = initialCloudUi();
 
   const selected = (): Profile | null => ctx.state.profiles.find((p) => p.id === selectedId) ?? null;
 
@@ -58,10 +61,10 @@ export function renderParent(ctx: Ctx): void {
           ${ctx.state.profiles.length === 0 ? html`<p class="muted">No explorers yet. Create one from the start screen.</p>` : ""}
         </nav>
         <nav class="tabs">
-          ${(["overview", "curriculum", "sessions", "settings"] as Tab[]).map((t) => html`<button class="tab ${t === tab ? "on" : ""}" data-action="tab" data-tab="${t}">${t[0]?.toUpperCase()}${t.slice(1)}</button>`)}
+          ${(["overview", "curriculum", "sessions", "settings", "cloud"] as Tab[]).map((t) => html`<button class="tab ${t === tab ? "on" : ""}" data-action="tab" data-tab="${t}">${t[0]?.toUpperCase()}${t.slice(1)}</button>`)}
         </nav>
         <section class="tab-body">
-          ${p ? (tab === "overview" ? overview(p) : tab === "curriculum" ? curriculum(p) : tab === "sessions" ? sessions(p) : settings(p)) : appSettings()}
+          ${tab === "cloud" ? cloudTab(ctx, cloudUi) : p ? (tab === "overview" ? overview(p) : tab === "curriculum" ? curriculum(p) : tab === "sessions" ? sessions(p) : settings(p)) : appSettings()}
         </section>
       </div>
     `.value;
@@ -213,7 +216,7 @@ export function renderParent(ctx: Ctx): void {
       if (pinEntry.length === 4) {
         if (!ctx.state.parentPin) {
           if (pinFirst === null) { pinFirst = pinEntry; pinEntry = ""; }
-          else if (pinFirst === pinEntry) { ctx.state.parentPin = pinEntry; ctx.save(); unlocked = true; }
+          else if (pinFirst === pinEntry) { ctx.state.parentPin = pinEntry; ctx.state.parentPinUpdatedAt = Date.now(); ctx.save(); unlocked = true; }
           else { error = "The PINs did not match. Start again."; pinFirst = null; pinEntry = ""; }
         } else if (pinEntry === ctx.state.parentPin) unlocked = true;
         else { error = "That PIN is not right."; pinEntry = ""; }
@@ -222,11 +225,11 @@ export function renderParent(ctx: Ctx): void {
     },
     child(t) { selectedId = t.dataset.id ?? null; confirmAction = null; drawDashboard(); },
     tab(t) { tab = (t.dataset.tab as Tab) ?? "overview"; drawDashboard(); },
-    limit(t) { const p = selected(); if (!p) return; p.dailyLimitMin = Number(t.dataset.min); ctx.save(); drawDashboard(); },
-    bonus() { const p = selected(); if (!p) return; grantBonusMinutes(p, 10); ctx.save(); drawDashboard(); },
-    narration() { const p = selected(); if (!p) return; p.settings.narration = !p.settings.narration; ctx.save(); drawDashboard(); },
-    reo() { const p = selected(); if (!p) return; p.settings.teReo = !p.settings.teReo; ctx.save(); drawDashboard(); },
-    unlock(t) { const p = selected(); if (!p) return; const idx = Number(t.dataset.index); p.parentUnlockedRegion = p.parentUnlockedRegion === idx ? Math.max(0, idx - 1) : idx; ctx.save(); drawDashboard(); },
+    limit(t) { const p = selected(); if (!p) return; p.dailyLimitMin = Number(t.dataset.min); touch(p); ctx.save(); drawDashboard(); },
+    bonus() { const p = selected(); if (!p) return; grantBonusMinutes(p, 10); touch(p); ctx.save(); drawDashboard(); },
+    narration() { const p = selected(); if (!p) return; p.settings.narration = !p.settings.narration; touch(p); ctx.save(); drawDashboard(); },
+    reo() { const p = selected(); if (!p) return; p.settings.teReo = !p.settings.teReo; touch(p); ctx.save(); drawDashboard(); },
+    unlock(t) { const p = selected(); if (!p) return; const idx = Number(t.dataset.index); p.parentUnlockedRegion = p.parentUnlockedRegion === idx ? Math.max(0, idx - 1) : idx; touch(p); ctx.save(); drawDashboard(); },
     reset() { const p = selected(); if (p) { confirmAction = { kind: "reset", id: p.id }; drawDashboard(); } },
     delete() { const p = selected(); if (p) { confirmAction = { kind: "delete", id: p.id }; drawDashboard(); } },
     cancel() { confirmAction = null; drawDashboard(); },
@@ -237,8 +240,10 @@ export function renderParent(ctx: Ctx): void {
         p.progress = {}; p.rescues = {}; p.feathers = 0; p.playLog = {}; p.bonusLog = {};
         p.stats = { timePlayedMs: 0, questionsAnswered: 0, questionsCorrect: 0, skills: {}, sessions: [] };
         p.shop = { owned: [], equipped: {} };
+        touch(p);
       } else {
         ctx.state.profiles = ctx.state.profiles.filter((c) => c.id !== p.id);
+        ctx.state.deleted[p.id] = Date.now();
         if (ctx.state.currentProfileId === p.id) ctx.state.currentProfileId = null;
         selectedId = ctx.state.profiles[0]?.id ?? null;
       }
@@ -247,7 +252,21 @@ export function renderParent(ctx: Ctx): void {
       drawDashboard();
     },
     sound() { ctx.state.settings.sound = !ctx.state.settings.sound; ctx.save(); drawDashboard(); },
-    changepin() { ctx.state.parentPin = null; pinFirst = null; pinEntry = ""; unlocked = false; ctx.save(); drawPin(); },
+    changepin() { ctx.state.parentPin = null; ctx.state.parentPinUpdatedAt = Date.now(); pinFirst = null; pinEntry = ""; unlocked = false; ctx.save(); drawPin(); },
+    ...cloudHandlers(ctx, cloudUi, el, drawDashboard),
+  });
+
+  // Enter in a cloud form triggers the form's action instead of reloading the page.
+  el.addEventListener("submit", (ev) => {
+    const form = (ev.target as HTMLElement).closest<HTMLElement>("form[data-submit]");
+    if (!form) return;
+    ev.preventDefault();
+    form.querySelector<HTMLElement>(`[data-action="${form.dataset.submit}"]`)?.click();
+  });
+
+  void detectRecovery(cloudUi).then((pending) => {
+    if (pending) tab = "cloud";
+    if (pending && unlocked) drawDashboard();
   });
 
   drawPin();

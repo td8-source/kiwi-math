@@ -5,6 +5,9 @@ import type { Ctx, Route } from "./app/context";
 import { setSoundEnabled } from "./app/audio";
 import { cancelSpeech, setNarrationEnabled } from "./app/speech";
 import { timeIsUp } from "./app/timer";
+import { touch } from "./app/state";
+import { initSync, schedulePush, syncNow } from "./app/sync";
+import { passwordRecoveryPending } from "./app/cloud";
 import { renderProfiles, renderNewProfile } from "./screens/profiles";
 import { renderMap } from "./screens/map";
 import { renderRegion } from "./screens/region";
@@ -32,7 +35,10 @@ async function boot(): Promise<void> {
     },
     save() {
       applySettings();
+      const p = this.currentProfile();
+      if (p) touch(p);
       void saveState(state);
+      schedulePush();
     },
     go(route: Route) {
       render(route);
@@ -67,7 +73,23 @@ async function boot(): Promise<void> {
     }
   }
 
-  render(ctx.currentProfile() ? { name: "map" } : { name: "profiles" });
+  initSync({
+    getState: () => state,
+    setState(next) {
+      // Keep the shared state object so every screen sees the merged data.
+      Object.assign(state, next);
+      applySettings();
+      void saveState(state);
+      if (ctx.route.name === "profiles" || ctx.route.name === "map" || ctx.route.name === "region") render(ctx.route);
+    },
+    onStatus(status) {
+      document.querySelectorAll<HTMLElement>(".sync-pill").forEach((el) => { el.dataset.status = status; });
+    },
+  });
+
+  const recovery = await passwordRecoveryPending();
+  render(recovery ? { name: "parent" } : ctx.currentProfile() ? { name: "map" } : { name: "profiles" });
+  void syncNow();
 }
 
 void boot();

@@ -6,6 +6,7 @@ import { remainingTodayMs } from "../app/timer";
 import { avatarSvg, creatureSvg, explorerSvg, featherSvg, lockSvg, regionSvg, speakerSvg, starSvg, type ExplorerLook } from "../ui/art";
 import { delegate, html, type Raw } from "../ui/html";
 import { findItem } from "../app/shop";
+import { syncEnabled, syncStatus } from "../app/sync";
 import type { Profile } from "../app/state";
 
 export function lookFor(p: Profile): ExplorerLook {
@@ -23,6 +24,7 @@ export function headerBar(ctx: Ctx, opts: { back?: { label: string; action: stri
         ${opts.title ? html`<h1>${opts.title}</h1>` : ""}
       </div>
       <div class="bar-right">
+        ${syncEnabled() ? html`<span class="pill sync-pill" data-status="${syncStatus()}" title="Cloud sync">☁</span>` : ""}
         ${remaining !== null ? html`<span class="pill timer" title="Play time left today">⏱ ${Math.ceil(remaining / 60000)} min</span>` : ""}
         <span class="pill">${starSvg(true, "star inline")} ${totalStars(p)}</span>
         <span class="pill">${featherSvg("feather inline")} ${p.feathers}</span>

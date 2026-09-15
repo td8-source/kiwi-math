@@ -14,9 +14,11 @@
     "tauri": "tauri",
     "app:dev": "tauri dev",
     "app:build": "tauri build",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "cloud:check": "node scripts/cloud-check.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-store": "^2.4.4"
   },

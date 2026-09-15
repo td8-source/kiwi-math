@@ -42,6 +42,8 @@ export interface ProfileSettings {
 export interface Profile {
   id: string;
   name: string;
+  /** Last local change, used to merge cloud saves. */
+  updatedAt: number;
   age: 5 | 6 | 7 | 8;
   avatar: Avatar;
   createdAt: number;
@@ -70,18 +72,36 @@ export interface Profile {
   };
 }
 
+export type SyncMode = "none" | "account" | "family";
+
+export interface SyncSettings {
+  mode: SyncMode;
+  /** Family code, kept only on this device. */
+  familyCode?: string;
+  /** Signed-in parent email, for display. */
+  email?: string;
+  lastSyncedAt?: number;
+  lastError?: string;
+}
+
 export interface AppState {
   version: number;
   profiles: Profile[];
+  /** Profiles deleted on this device, so the deletion wins over older cloud copies. */
+  deleted: Record<string, number>;
   currentProfileId: string | null;
   parentPin: string | null;
+  /** When the PIN was last changed, for merging. */
+  parentPinUpdatedAt: number;
   settings: {
     sound: boolean;
   };
+  /** Device-only cloud settings; never uploaded. */
+  sync: SyncSettings;
 }
 
 export function defaultState(): AppState {
-  return { version: STATE_VERSION, profiles: [], currentProfileId: null, parentPin: null, settings: { sound: true } };
+  return { version: STATE_VERSION, profiles: [], deleted: {}, currentProfileId: null, parentPin: null, parentPinUpdatedAt: 0, settings: { sound: true }, sync: { mode: "none" } };
 }
 
 export const AVATAR_COLOURS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#0ea5e9", "#8b5cf6", "#ec4899", "#14b8a6"];
@@ -95,6 +115,7 @@ export function createProfile(name: string, age: 5 | 6 | 7 | 8, avatar: Avatar):
   return {
     id: newId(),
     name: name.trim().slice(0, 16) || "Explorer",
+    updatedAt: Date.now(),
     age,
     avatar,
     createdAt: Date.now(),
@@ -117,6 +138,7 @@ export function migrate(raw: unknown): AppState {
   const state = defaultState();
   state.profiles = Array.isArray(s.profiles) ? s.profiles.filter((p) => p && typeof p.id === "string") : [];
   for (const p of state.profiles) {
+    p.updatedAt ??= p.createdAt ?? 0;
     p.progress ??= {};
     p.rescues ??= {};
     p.feathers ??= 0;
@@ -136,6 +158,18 @@ export function migrate(raw: unknown): AppState {
   }
   state.currentProfileId = typeof s.currentProfileId === "string" && state.profiles.some((p) => p.id === s.currentProfileId) ? s.currentProfileId : null;
   state.parentPin = typeof s.parentPin === "string" && /^\d{4}$/.test(s.parentPin) ? s.parentPin : null;
+  state.parentPinUpdatedAt = typeof s.parentPinUpdatedAt === "number" ? s.parentPinUpdatedAt : 0;
+  state.deleted = s.deleted && typeof s.deleted === "object" ? s.deleted : {};
   state.settings = { sound: s.settings?.sound ?? true };
+  const mode = s.sync?.mode;
+  state.sync = { mode: mode === "account" || mode === "family" ? mode : "none" };
+  if (typeof s.sync?.familyCode === "string") state.sync.familyCode = s.sync.familyCode;
+  if (typeof s.sync?.email === "string") state.sync.email = s.sync.email;
+  if (typeof s.sync?.lastSyncedAt === "number") state.sync.lastSyncedAt = s.sync.lastSyncedAt;
   return state;
+}
+
+/** Mark a profile as changed so cloud merges prefer this copy. */
+export function touch(profile: Profile): void {
+  profile.updatedAt = Date.now();
 }
