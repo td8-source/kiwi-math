@@ -29,7 +29,7 @@ export function headerBar(ctx: Ctx, opts: { back?: { label: string; action: stri
         <span class="pill">${starSvg(true, "star inline")} ${totalStars(p)}</span>
         <span class="pill">${featherSvg("feather inline")} ${p.feathers}</span>
         <button class="pill toggle ${p.settings.narration ? "on" : ""}" data-action="narration" title="Read questions aloud">${speakerSvg()}</button>
-        <button class="pill toggle ${p.settings.teReo ? "on" : ""}" data-action="reo" title="Show te reo Māori numbers">reo</button>
+        <button class="pill toggle ${p.settings.teReo ? "on" : ""}" data-action="te reo" title="Show te reo Māori numbers">reo</button>
         <button class="btn ghost small" data-action="shop">Backpack</button>
         <button class="pill profile-pill" data-action="switch" title="Change explorer">
           ${avatarSvg(p.avatar, lookFor(p).hat, "avatar tiny")}
