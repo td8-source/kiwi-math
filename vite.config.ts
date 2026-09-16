@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 // When built for GitHub Pages the app is served from a subpath
 // (https://<user>.github.io/<repo>/), so assets need that prefix baked in.
 // Locally and in the Tauri build it stays "/".
-const base = process.env.GH_PAGES === "true" ? "/Nature-Math/" : "/";
+const base = process.env.GH_PAGES === "true" ? "/kiwi-math/" : "/";
 
 // CI passes the Supabase settings through env; when they are unset there they arrive as
 // empty strings, which must not shadow values from a local .env file.
