@@ -37,6 +37,12 @@ export interface ProfileSettings {
   teReo: boolean;
   /** Read questions aloud. */
   narration: boolean;
+  /**
+   * Parent override for beta testing: opens every region, trail, tier and rescue
+   * regardless of progress. Stars, feathers and stats are untouched, so turning it
+   * off puts the explorer back on the normal path exactly where they were.
+   */
+  unlockAll: boolean;
 }
 
 export interface Profile {
@@ -111,10 +117,17 @@ export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export const NAME_MAX_LENGTH = 16;
+
+/** Trim a typed name to what a profile can hold. Returns "" when nothing usable is left. */
+export function cleanName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").slice(0, NAME_MAX_LENGTH).trim();
+}
+
 export function createProfile(name: string, age: 5 | 6 | 7 | 8, avatar: Avatar): Profile {
   return {
     id: newId(),
-    name: name.trim().slice(0, 16) || "Explorer",
+    name: cleanName(name) || "Explorer",
     updatedAt: Date.now(),
     age,
     avatar,
@@ -123,7 +136,7 @@ export function createProfile(name: string, age: 5 | 6 | 7 | 8, avatar: Avatar):
     parentUnlockedRegion: Math.max(0, Math.min(3, age - 5)),
     progress: {},
     rescues: {},
-    settings: { teReo: true, narration: true },
+    settings: { teReo: true, narration: true, unlockAll: false },
     dailyLimitMin: 0,
     playLog: {},
     bonusLog: {},
@@ -143,9 +156,10 @@ export function migrate(raw: unknown): AppState {
     p.rescues ??= {};
     p.feathers ??= 0;
     p.parentUnlockedRegion ??= Math.max(0, Math.min(3, (p.age ?? 5) - 5));
-    p.settings ??= { teReo: true, narration: true };
+    p.settings ??= { teReo: true, narration: true, unlockAll: false };
     p.settings.teReo ??= true;
     p.settings.narration ??= true;
+    p.settings.unlockAll ??= false;
     p.dailyLimitMin ??= 0;
     p.playLog ??= {};
     p.bonusLog ??= {};

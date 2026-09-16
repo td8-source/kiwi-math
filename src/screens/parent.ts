@@ -1,11 +1,11 @@
 import { mount, type Ctx } from "../app/context";
 import { REGIONS, TIER_NAMES, findTrail } from "../curriculum";
 import { STRAND_NAMES, type Strand, type Tier } from "../curriculum/types";
-import { accuracy, trailResult, regionStars, regionUnlocked, totalStars, rescuedCreatures } from "../app/progress";
+import { accuracy, trailResult, regionStars, regionUnlocked, totalStars, rescuedCreatures, unlockAllOn } from "../app/progress";
 import { grantBonusMinutes, playedTodayMs, remainingTodayMs } from "../app/timer";
 import type { Profile } from "../app/state";
 import { avatarSvg, starSvg } from "../ui/art";
-import { touch } from "../app/state";
+import { NAME_MAX_LENGTH, cleanName, touch } from "../app/state";
 import { cloudHandlers, cloudTab, detectRecovery, initialCloudUi } from "./cloudtab";
 import { delegate, formatDate, formatDuration, html } from "../ui/html";
 
@@ -22,6 +22,8 @@ export function renderParent(ctx: Ctx): void {
   let tab: Tab = "overview";
   let selectedId: string | null = ctx.state.currentProfileId ?? ctx.state.profiles[0]?.id ?? null;
   let confirmAction: null | { kind: "reset" | "delete"; id: string } = null;
+  let nameError = "";
+  let nameNotice = "";
   const cloudUi = initialCloudUi();
 
   const selected = (): Profile | null => ctx.state.profiles.find((p) => p.id === selectedId) ?? null;
@@ -170,6 +172,17 @@ export function renderParent(ctx: Ctx): void {
   };
 
   const settings = (p: Profile) => html`
+    <h3>Explorer name</h3>
+    <p class="muted">Change the name ${p.name} sees on the start screen, in the header and in spoken praise. Stars, feathers and progress stay exactly as they are.</p>
+    <form class="rename-form" data-submit="rename">
+      <label class="field">
+        <span class="sr-only">Name</span>
+        <input name="rename" type="text" maxlength="${NAME_MAX_LENGTH}" autocomplete="off" placeholder="Type a name" value="${p.name}" />
+      </label>
+      <button type="button" class="btn small" data-action="rename">Save name</button>
+    </form>
+    ${nameError ? html`<p class="tab-error">${nameError}</p>` : ""}
+    ${nameNotice ? html`<p class="tab-message">${nameNotice}</p>` : ""}
     <h3>Daily play limit</h3>
     <p class="muted">When the limit is reached, ${p.name} sees a friendly "time to rest" screen. Played today: ${formatDuration(playedTodayMs(p))}.</p>
     <div class="chip-row">
@@ -182,9 +195,14 @@ export function renderParent(ctx: Ctx): void {
       <button class="btn small" data-action="reo">Te reo Māori numbers: ${p.settings.teReo ? "on" : "off"}</button>
     </div>
     <h3>Regions</h3>
-    <p class="muted">Regions normally unlock by rescuing the previous region's creature. Open more here if ${p.name} is ready.</p>
+    <p class="muted">Regions normally unlock by rescuing the previous region's creature. Open more here if ${p.name} is ready.${unlockAllOn(p) ? " Unlock everything is on, so every region is open whatever is chosen here." : ""}</p>
     <div class="chip-row">
       ${REGIONS.map((r) => html`<button class="chip ${p.parentUnlockedRegion >= r.index ? "on" : ""}" data-action="unlock" data-index="${r.index}">${r.name}</button>`)}
+    </div>
+    <h3>Unlock everything (for testing)</h3>
+    <p class="muted">Opens every region, trail, Bronze, Silver and Gold round and creature rescue for ${p.name} straight away, so a whole build can be checked without playing through it. Nothing earned is changed: stars, feathers, gear and the dashboard keep recording as normal, and switching it off puts ${p.name} back on the usual path in the same place.</p>
+    <div class="chip-row">
+      <button class="btn small ${unlockAllOn(p) ? "primary" : ""}" data-action="unlockall">Unlock everything: ${unlockAllOn(p) ? "on" : "off"}</button>
     </div>
     <h3>Danger zone</h3>
     ${confirmAction && confirmAction.id === p.id
@@ -205,6 +223,8 @@ export function renderParent(ctx: Ctx): void {
     </div>
   `;
 
+  const clearNameFeedback = (): void => { nameError = ""; nameNotice = ""; };
+
   delegate(el, {
     back() { ctx.go(ctx.currentProfile() ? { name: "map" } : { name: "profiles" }); },
     pin(t) {
@@ -223,8 +243,27 @@ export function renderParent(ctx: Ctx): void {
       }
       unlocked ? drawDashboard() : drawPin();
     },
-    child(t) { selectedId = t.dataset.id ?? null; confirmAction = null; drawDashboard(); },
-    tab(t) { tab = (t.dataset.tab as Tab) ?? "overview"; drawDashboard(); },
+    child(t) { selectedId = t.dataset.id ?? null; confirmAction = null; clearNameFeedback(); drawDashboard(); },
+    tab(t) { tab = (t.dataset.tab as Tab) ?? "overview"; clearNameFeedback(); drawDashboard(); },
+    rename() {
+      const p = selected();
+      if (!p) return;
+      const typed = el.querySelector<HTMLInputElement>("input[name=rename]")?.value ?? "";
+      const name = cleanName(typed);
+      clearNameFeedback();
+      if (!name) nameError = "Type a name first.";
+      else if (name === p.name) nameNotice = `Already called ${p.name}.`;
+      else if (ctx.state.profiles.some((c) => c.id !== p.id && c.name.toLowerCase() === name.toLowerCase())) nameError = `Another explorer is already called ${name}. Pick a different name.`;
+      else {
+        const was = p.name;
+        p.name = name;
+        touch(p);
+        ctx.save();
+        nameNotice = `${was} is now ${name}.`;
+      }
+      drawDashboard();
+    },
+    unlockall() { const p = selected(); if (!p) return; p.settings.unlockAll = !p.settings.unlockAll; touch(p); ctx.save(); drawDashboard(); },
     limit(t) { const p = selected(); if (!p) return; p.dailyLimitMin = Number(t.dataset.min); touch(p); ctx.save(); drawDashboard(); },
     bonus() { const p = selected(); if (!p) return; grantBonusMinutes(p, 10); touch(p); ctx.save(); drawDashboard(); },
     narration() { const p = selected(); if (!p) return; p.settings.narration = !p.settings.narration; touch(p); ctx.save(); drawDashboard(); },

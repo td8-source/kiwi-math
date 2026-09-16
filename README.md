@@ -11,10 +11,19 @@ Explorers travel through four regions, one per year level: Golden Beach (Te Tāh
 - **Voice narration**: every question can be read aloud using the Mac's built-in voices (or the browser's), with a speaker button to hear it again. Hints, answers and praise are spoken too. Can be switched off per child.
 - **Te reo Māori**: numbers to 100 appear in te reo under the numerals, regions and trails carry te reo names, and praise mixes in "Ka pai!" and "Tino pai!". A one-tap toggle in the header turns it on or off.
 - **Gentle scaffolding**: a wrong answer shows a hint and gives a second try; a second miss reveals the answer with an explanation. Stars and unlocks are based on first-try accuracy.
-- **Multiple child profiles** on one Mac, each with their own explorer, progress, feathers and gear. A child's age picks their starting region.
+- **Multiple child profiles** on one Mac, each with their own explorer, progress, feathers and gear. A child's age picks their starting region, and a parent can rename an explorer at any time without touching their progress.
 - **Daily play timer**: parents set a per-child limit (off, or 10 to 60 minutes). When it is reached, Ruru the morepork shows a friendly "time to rest" screen. Parents can grant 10 bonus minutes from the dashboard.
-- **PIN-protected parent and teacher dashboard** with accuracy by skill and by strand, curriculum-aligned progress tables, recent sessions, "needs practice" highlights, manual region unlocks, resets and settings.
+- **PIN-protected parent and teacher dashboard** with accuracy by skill and by strand, curriculum-aligned progress tables, recent sessions, "needs practice" highlights, manual region unlocks, renaming, resets and settings.
+- **Unlock everything** switch per explorer, for beta testing and demos: opens all four regions, every trail, all Bronze, Silver and Gold rounds and all four rescues at once. Stars, feathers, gear and the dashboard keep recording as normal, and turning it off puts the child back on the usual path exactly where they were.
 - **Offline, private, no accounts.** Progress is stored locally in the app's data folder (or `localStorage` in the browser).
+
+## Parent settings
+
+Everything below lives behind the parent PIN, in **Parents & teachers → Settings**, and applies to the explorer selected at the top of the dashboard.
+
+- **Explorer name** — type a new name and press *Save name* (or Enter). Names are trimmed to 16 characters, and two explorers on the same device cannot share a name. The change shows immediately on the start screen, in the header and in spoken praise; stars, feathers, gear and stats are untouched.
+- **Regions** — open regions ahead of the normal unlock path, one at a time.
+- **Unlock everything (for testing)** — one switch that opens every region, trail, tier and creature rescue for that explorer. Useful for checking a whole build, or a specific late-region trail, without playing through 40 trails first. While it is on, a **Testing** pill sits in the game's header so it is never a surprise that everything is open. It changes only what can be opened: rounds played while it is on still earn stars and feathers and still appear in the dashboard, so switching it off returns the child to the normal path with their real progress intact. The setting is per explorer and syncs with the rest of the profile when cloud sync is on.
 
 ## Building the macOS app
 

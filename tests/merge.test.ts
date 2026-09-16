@@ -79,6 +79,27 @@ describe("merge", () => {
     expect((toCloudState(local) as Partial<AppState>).sync).toBeUndefined();
   });
 
+  it("carries a rename and the testing unlock to other devices", () => {
+    const here = createProfile("Kai", 5, { character: 0, colour: "#000" });
+    const there = JSON.parse(JSON.stringify(here)) as typeof here;
+
+    // This device renames the explorer and turns on the testing unlock.
+    here.name = "Kaia";
+    here.settings.unlockAll = true;
+    here.updatedAt = there.updatedAt + 1000;
+
+    const merged = mergeStates(stateWith(there), toCloudState(stateWith(here))).profiles[0]!;
+    expect(merged.name).toBe("Kaia");
+    expect(merged.settings.unlockAll).toBe(true);
+
+    // Switching it off on the newer device wins too, and the rename sticks.
+    here.settings.unlockAll = false;
+    here.updatedAt += 1000;
+    const off = mergeStates(stateWith(there), toCloudState(stateWith(here))).profiles[0]!;
+    expect(off.name).toBe("Kaia");
+    expect(off.settings.unlockAll).toBe(false);
+  });
+
   it("survives garbage from the cloud", () => {
     const local = stateWith(createProfile("Kai", 5, { character: 0, colour: "#000" }));
     expect(mergeStates(local, null).profiles).toHaveLength(1);
