@@ -17,13 +17,22 @@ export function tierPassed(profile: Profile, trailId: string, tier: Tier): boole
   return (trailResult(profile, trailId, tier)?.stars ?? 0) >= 1;
 }
 
+/**
+ * Parent override for beta testing: every region, trail, tier and rescue is open.
+ * It only affects what can be opened, never what has been earned.
+ */
+export function unlockAllOn(profile: Profile): boolean {
+  return profile.settings?.unlockAll === true;
+}
+
 export function tierUnlocked(profile: Profile, trailId: string, tier: Tier): boolean {
-  if (tier === 1) return true;
+  if (tier === 1 || unlockAllOn(profile)) return true;
   return tierPassed(profile, trailId, (tier - 1) as Tier);
 }
 
 /** The first trail is open; each later trail opens once the previous trail's bronze is passed. */
 export function trailUnlocked(profile: Profile, region: Region, trailIndex: number): boolean {
+  if (unlockAllOn(profile)) return true;
   if (!regionUnlocked(profile, region.index)) return false;
   if (trailIndex === 0) return true;
   const prev = region.trails[trailIndex - 1];
@@ -31,6 +40,7 @@ export function trailUnlocked(profile: Profile, region: Region, trailIndex: numb
 }
 
 export function rescueUnlocked(profile: Profile, region: Region): boolean {
+  if (unlockAllOn(profile)) return true;
   return regionUnlocked(profile, region.index) && region.trails.every((t) => tierPassed(profile, t.id, 1));
 }
 
@@ -39,6 +49,7 @@ export function rescuePassed(profile: Profile, region: Region): boolean {
 }
 
 export function regionUnlocked(profile: Profile, index: number): boolean {
+  if (unlockAllOn(profile)) return true;
   if (index <= profile.parentUnlockedRegion) return true;
   const prev = REGIONS[index - 1];
   return prev ? rescuePassed(profile, prev) : false;

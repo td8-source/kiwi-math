@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { REGIONS } from "../src/curriculum";
-import { createProfile, migrate, defaultState } from "../src/app/state";
-import { trailUnlocked, regionUnlocked, recordRound, tierUnlocked, rescueUnlocked, totalStars, rescuedCreatures, type AnswerRecord } from "../src/app/progress";
+import { cleanName, createProfile, migrate, defaultState } from "../src/app/state";
+import { trailUnlocked, regionUnlocked, recordRound, tierUnlocked, rescueUnlocked, rescuePassed, totalStars, rescuedCreatures, unlockAllOn, type AnswerRecord } from "../src/app/progress";
 import { addPlayTime, allowedTodayMs, dayKey, grantBonusMinutes, playedTodayMs, remainingTodayMs, timeIsUp } from "../src/app/timer";
 
 const answers = (correct: number, total = 10): AnswerRecord[] =>
@@ -80,6 +80,78 @@ describe("progression", () => {
   });
 });
 
+describe("unlock everything (parent testing override)", () => {
+  const tester = (): ReturnType<typeof createProfile> => {
+    const p = createProfile("Beta", 5, { character: 0, colour: "#000" });
+    p.settings.unlockAll = true;
+    return p;
+  };
+
+  it("is off for a new explorer", () => {
+    expect(unlockAllOn(createProfile("Kai", 5, { character: 0, colour: "#000" }))).toBe(false);
+  });
+
+  it("opens every region, trail, tier and rescue at once", () => {
+    const p = tester();
+    for (const region of REGIONS) {
+      expect(regionUnlocked(p, region.index)).toBe(true);
+      expect(rescueUnlocked(p, region)).toBe(true);
+      region.trails.forEach((trail, i) => {
+        expect(trailUnlocked(p, region, i)).toBe(true);
+        for (const tier of [1, 2, 3] as const) expect(tierUnlocked(p, trail.id, tier)).toBe(true);
+      });
+    }
+  });
+
+  it("changes nothing that was earned, so turning it off restores the normal path", () => {
+    const p = tester();
+    const region = REGIONS[3]!;
+    const trail = region.trails[5]!;
+    recordRound(p, { region, trailId: trail.id, tier: 3, answers: answers(10), durationMs: 30_000 });
+
+    expect(totalStars(p)).toBe(3);
+    expect(p.feathers).toBeGreaterThan(0);
+    expect(p.stats.questionsAnswered).toBe(10);
+    expect(rescuePassed(p, REGIONS[0]!)).toBe(false);
+    expect(rescuedCreatures(p)).toEqual([]);
+
+    p.settings.unlockAll = false;
+    expect(regionUnlocked(p, 3)).toBe(false);
+    expect(trailUnlocked(p, region, 5)).toBe(false);
+    // The gold round played during testing is still on record.
+    expect(totalStars(p)).toBe(3);
+  });
+
+  it("does not announce unlocks that were already open", () => {
+    const p = tester();
+    const region = REGIONS[0]!;
+    const out = recordRound(p, { region, trailId: region.trails[0]!.id, tier: 1, answers: answers(10), durationMs: 10_000 });
+    expect(out.unlocked).toEqual([]);
+  });
+
+  it("still frees a creature when the rescue is passed during testing", () => {
+    const p = tester();
+    const region = REGIONS[2]!;
+    const out = recordRound(p, { region, trailId: null, tier: 0, answers: answers(10), durationMs: 20_000 });
+    expect(out.rescued).toEqual(region.rescue);
+    expect(rescuePassed(p, region)).toBe(true);
+  });
+});
+
+describe("renaming an explorer", () => {
+  it("trims, collapses spaces and caps the length", () => {
+    expect(cleanName("  Kai  ")).toBe("Kai");
+    expect(cleanName("Te  Ana")).toBe("Te Ana");
+    expect(cleanName("Pōhutukawa Explorer")).toBe("Pōhutukawa Explo");
+    expect(cleanName("   ")).toBe("");
+  });
+
+  it("falls back to Explorer only when creating, never hiding an empty rename", () => {
+    expect(createProfile("   ", 5, { character: 0, colour: "#000" }).name).toBe("Explorer");
+    expect(cleanName("")).toBe("");
+  });
+});
+
 describe("daily timer", () => {
   it("has no limit by default", () => {
     const p = createProfile("Kai", 5, { character: 0, colour: "#000" });
@@ -126,6 +198,7 @@ describe("state migration", () => {
     expect(p.feathers).toBe(0);
     expect(p.parentUnlockedRegion).toBe(2);
     expect(p.settings.teReo).toBe(true);
+    expect(p.settings.unlockAll).toBe(false);
     expect(p.dailyLimitMin).toBe(0);
     expect(p.playLog).toEqual({});
     expect(s.parentPin).toBeNull();

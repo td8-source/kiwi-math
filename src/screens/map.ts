@@ -1,6 +1,6 @@
 import { mount, type Ctx } from "../app/context";
 import { REGIONS } from "../curriculum";
-import { regionStars, regionUnlocked, regionComplete, totalStars, rescuePassed } from "../app/progress";
+import { regionStars, regionUnlocked, regionComplete, totalStars, rescuePassed, unlockAllOn } from "../app/progress";
 import { sfx } from "../app/audio";
 import { remainingTodayMs } from "../app/timer";
 import { avatarSvg, creatureSvg, explorerSvg, featherSvg, lockSvg, regionSvg, speakerSvg, starSvg, type ExplorerLook } from "../ui/art";
@@ -24,6 +24,7 @@ export function headerBar(ctx: Ctx, opts: { back?: { label: string; action: stri
         ${opts.title ? html`<h1>${opts.title}</h1>` : ""}
       </div>
       <div class="bar-right">
+        ${unlockAllOn(p) ? html`<span class="pill testing" title="A parent has unlocked everything for testing. Turn it off in Parents &amp; teachers → Settings.">Testing</span>` : ""}
         ${syncEnabled() ? html`<span class="pill sync-pill" data-status="${syncStatus()}" title="Cloud sync">☁</span>` : ""}
         ${remaining !== null ? html`<span class="pill timer" title="Play time left today">⏱ ${Math.ceil(remaining / 60000)} min</span>` : ""}
         <span class="pill">${starSvg(true, "star inline")} ${totalStars(p)}</span>
