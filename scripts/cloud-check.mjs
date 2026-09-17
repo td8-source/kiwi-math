@@ -194,6 +194,56 @@ await d.click('[data-action="parent"]');
 await d.waitForSelector(".pin-gate");
 expect(await d.$eval(".pin-gate h2", (h) => h.textContent.includes("Enter")), "parent PIN synced to device D");
 
+// --- Switching accounts on one device: parent one's explorers must not follow.
+await d.click('[data-action="back"]');
+await d.waitForSelector(".profile-grid, .land");
+await openCloudTab(d);
+await d.click('[data-action="cloud-signout"]');
+await d.waitForSelector(".cloud-options");
+expect(cloud.saves.get("user-1")?.profiles?.some((p) => p.name === "Mia"), "device D pushed Mia back to the account before signing out");
+await d.click('[data-action="back"]');
+await d.waitForSelector(".welcome-options");
+expect(!(await d.$(".profile-grid")), "signing out removed the explorer picker from device D");
+
+// A second parent signs up on the same device and must start with an empty picker.
+await d.click('[data-action="parent"]');
+await d.waitForSelector(".pin-gate");
+expect(await d.$eval(".pin-gate h2", (h) => h.textContent.includes("Create")), "device D asks the new parent for a fresh PIN");
+for (const k of ["9", "9", "9", "9", "9", "9", "9", "9"]) await d.click(`[data-action="pin"][data-key="${k}"]`);
+await d.waitForSelector(".dash");
+await d.click('[data-action="tab"][data-tab="cloud"]');
+await d.click('[data-action="cloud-view"][data-view="account"]');
+await d.fill("input[name=email]", "other-parent@example.com");
+await d.fill("input[name=password]", "kiwi-pass-456");
+await d.click('[data-action="cloud-signup"]');
+await d.waitForSelector(".cloud-status");
+await d.click('[data-action="back"]');
+await d.waitForSelector(".welcome-options, .profile-grid");
+const namesD2 = await d.$$eval(".profile-card .profile-name", (els) => els.map((e) => e.textContent.trim()));
+expect(!namesD2.includes("Mia"), `the new parent on device D does not see Mia (${namesD2.join(", ") || "no explorers"})`);
+const otherId = [...cloud.users.values()].find((u) => u.email === "other-parent@example.com")?.id;
+const leaked = cloud.saves.get(otherId)?.profiles ?? [];
+expect(!leaked.some((p) => p.name === "Mia"), `Mia was not uploaded into the second account (${leaked.map((p) => p.name).join(", ") || "empty"})`);
+await d.screenshot({ path: join(OUT, "45-cloud-account-switched.png") });
+
+// The first parent signs back in on the same device and gets their explorer back.
+await d.click('[data-action="parent"]');
+await d.waitForSelector(".pin-gate");
+for (const k of ["9", "9", "9", "9"]) await d.click(`[data-action="pin"][data-key="${k}"]`);
+await d.waitForSelector(".dash");
+await d.click('[data-action="tab"][data-tab="cloud"]');
+await d.click('[data-action="cloud-signout"]');
+await d.waitForSelector(".cloud-options");
+await d.click('[data-action="cloud-view"][data-view="account"]');
+await d.fill("input[name=email]", "parent@example.com");
+await d.fill("input[name=password]", "kiwi-pass-123");
+await d.click('[data-action="cloud-signin"]');
+await d.waitForSelector(".cloud-status");
+await d.click('[data-action="back"]');
+await d.waitForSelector(".profile-grid");
+const namesD3 = await d.$$eval(".profile-card .profile-name", (els) => els.map((e) => e.textContent.trim()));
+expect(namesD3.includes("Mia"), `the first parent gets Mia back after signing in again (${namesD3.join(", ") || "no explorers"})`);
+
 await browser.close();
 server.close();
 console.log(`\n${calls.length} mock cloud calls`);

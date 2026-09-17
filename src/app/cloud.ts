@@ -65,11 +65,12 @@ export async function currentUser(): Promise<CloudUser | null> {
   }
 }
 
-export async function signUp(email: string, password: string): Promise<CloudResult<{ needsConfirmation: boolean }>> {
+export async function signUp(email: string, password: string): Promise<CloudResult<{ needsConfirmation: boolean; user: CloudUser | null }>> {
   try {
     const { data, error } = await (await client()).auth.signUp({ email, password });
     if (error) return fail(error);
-    return { ok: true, value: { needsConfirmation: !data.session } };
+    const user = data.session && data.user ? { id: data.user.id, email: data.user.email ?? email } : null;
+    return { ok: true, value: { needsConfirmation: !data.session, user } };
   } catch (err) {
     return fail(err);
   }

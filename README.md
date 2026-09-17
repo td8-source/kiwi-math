@@ -67,6 +67,8 @@ Two ways to link devices, chosen in the parent area under **Cloud**:
 
 Sync is offline-first. Saves stay local and are merged with the cloud copy on start-up, after each round, and when you press Sync now. Stars, best scores, feathers and gear are combined so nothing earned is lost when two devices disagree; other settings take the newer copy.
 
+One device, more than one family: the device remembers which account or family code its explorers belong to. **Sign out** uploads the latest progress, then removes the explorer profiles and the parent PIN from the device, so the next parent to sign in on a shared or handed-on device sees only their own children. Signing in again brings everything back from the account. If that last upload fails the explorers stay put rather than risk losing unsaved progress, and the device still refuses to merge them into a different account. **Unlink this device** (family codes) always leaves the explorers on the device, because a lost family code cannot be recovered.
+
 ### Setting it up (about 10 minutes, once)
 
 1. Create a free project at [supabase.com](https://supabase.com).
@@ -83,7 +85,7 @@ What is stored in the cloud: each explorer's first name, age, avatar, settings a
 ## Development
 
 ```bash
-npm test              # generator, progression, timer and migration tests
+npm test              # generator, progression, timer, migration and account-switching tests
 npm run typecheck
 npm run build && npm run screenshots   # headless walkthrough, images in ./screenshots
 
