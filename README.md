@@ -96,14 +96,13 @@ Where reports go:
 2. `.github/workflows/bug-reports.yml` runs hourly, reads new rows with the service-role key and opens one issue per report, labelled `bug` and `from-app`, then marks the row filed so it is never opened twice. It files at most 10 per run, and parks a row that GitHub rejects rather than letting it block the queue.
 3. If cloud sync is not configured, or the insert fails, the dialog offers **Open it on GitHub instead**: the same report as a prefilled new-issue link. That route needs a GitHub account, so it is a fallback rather than the main path.
 
-To turn on step 2, add two repository **Secrets** (not Variables, since the service-role key is not public):
+To turn on step 2, add one repository **Secret** under Settings → Secrets and variables → Actions → Secrets:
 
 | Secret | Where to find it |
 | --- | --- |
-| `SUPABASE_URL` | Project Settings → API → Project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → `service_role`. Never commit this key or put it in a `VITE_` variable. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → `service_role`. It bypasses row-level security, so it belongs in a Secret — never in a Variable, a `VITE_` value or a commit. |
 
-With the secrets unset the workflow exits quietly, so forks do nothing. Run it by hand from the Actions tab to test it. Reports are written with the public anon key, so anyone who has the app can insert one; if that is ever abused, drop the insert policy on `public.reports` in the SQL editor and the button falls back to the GitHub link.
+The project URL is reused from the existing `SUPABASE_URL` repository Variable. With the secret unset the workflow exits quietly, so forks do nothing. Run it by hand from the Actions tab to test it. Reports are written with the public anon key, so anyone who has the app can insert one; if that is ever abused, drop the insert policy on `public.reports` in the SQL editor and the button falls back to the GitHub link.
 
 ## Development
 
