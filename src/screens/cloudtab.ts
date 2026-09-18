@@ -5,6 +5,7 @@ import type { Ctx } from "../app/context";
 import { cloudConfigured, currentUser, passwordRecoveryPending, pullFamily, requestPasswordReset, signIn, signOut, signUp, updatePassword } from "../app/cloud";
 import { generateFamilyCode, isValidFamilyCode, normaliseFamilyCode } from "../app/familycode";
 import { syncNow, syncStatus } from "../app/sync";
+import { accountOwner, clearAccountData, familyOwner } from "../app/state";
 import { html, type Raw } from "../ui/html";
 
 export interface CloudUi {
@@ -69,7 +70,9 @@ export function cloudTab(ctx: Ctx, ui: CloudUi): Raw {
         <button class="btn primary" data-action="cloud-syncnow" ${ui.busy ? "disabled" : ""}>Sync now</button>
         <button class="btn" data-action="cloud-signout" ${ui.busy ? "disabled" : ""}>${s.mode === "account" ? "Sign out" : "Unlink this device"}</button>
       </div>
-      <p class="muted small-text">Progress stays on this device after signing out. Every explorer profile on this device is included in the cloud copy, and profiles from other devices appear here after a sync. Only first names, ages, avatars and progress are stored.</p>
+      <p class="muted small-text">${s.mode === "account"
+        ? "Signing out takes the explorer profiles off this device and leaves them safe in your account, so the next person to sign in here sees only their own children."
+        : "Unlinking leaves the explorer profiles on this device, because a lost family code cannot be recovered."} Every explorer profile on this device is included in the cloud copy, and profiles from other devices appear here after a sync. Only first names, ages, avatars and progress are stored.</p>
     `;
   }
   if (ui.view === "account") {
@@ -147,8 +150,11 @@ export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: 
     ui.busy = false;
     if (document.body.contains(root)) redraw();
   };
-  const link = async (mode: "account" | "family", extra: Partial<typeof ctx.state.sync>): Promise<void> => {
-    ctx.state.sync = { mode, ...extra };
+  const link = async (mode: "account" | "family", owner: string, extra: Partial<typeof ctx.state.sync>): Promise<void> => {
+    // Explorers left behind by a previous parent must not follow the device into a
+    // different account, so the device starts empty whenever it changes hands.
+    if (ctx.state.sync.owner && ctx.state.sync.owner !== owner) clearAccountData(ctx.state);
+    ctx.state.sync = { mode, owner, ...extra };
     ctx.save();
     await syncNow();
     if (ctx.state.sync.lastError) ui.error = ctx.state.sync.lastError;
@@ -168,7 +174,7 @@ export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: 
       void run(async () => {
         const r = await signIn(email, password);
         if (!r.ok) { ui.error = r.error; return; }
-        await link("account", { email: r.value.email });
+        await link("account", accountOwner(r.value.id), { email: r.value.email });
       });
     },
     "cloud-signup"() {
@@ -180,7 +186,9 @@ export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: 
         const r = await signUp(email, password);
         if (!r.ok) { ui.error = r.error; return; }
         if (r.value.needsConfirmation) { ui.message = "Account created. Check your email for a confirmation link, then sign in here."; return; }
-        await link("account", { email });
+        const user = r.value.user ?? (await currentUser());
+        if (!user) { ui.error = "Account created, but this device could not sign in. Try signing in here."; return; }
+        await link("account", accountOwner(user.id), { email: user.email || email });
       });
     },
     "cloud-reset"() {
@@ -202,7 +210,7 @@ export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: 
         ui.recovery = false;
         if (typeof history !== "undefined") history.replaceState(null, "", location.pathname + location.search);
         const user = await currentUser();
-        if (user) await link("account", { email: user.email });
+        if (user) await link("account", accountOwner(user.id), { email: user.email });
         ui.message = "Password saved. You are signed in.";
       });
     },
@@ -214,13 +222,15 @@ export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: 
         const r = await pullFamily(code);
         if (!r.ok) { ui.error = r.error; return; }
         if (r.value === null) { ui.error = "No family was found with that code. Check every word and digit, or create a new code."; return; }
-        await link("family", { familyCode: code });
+        await link("family", familyOwner(code), { familyCode: code });
       });
     },
     "cloud-family-create"() {
       void run(async () => {
         const code = generateFamilyCode();
-        ctx.state.sync = { mode: "family", familyCode: code };
+        const owner = familyOwner(code);
+        if (ctx.state.sync.owner && ctx.state.sync.owner !== owner) clearAccountData(ctx.state);
+        ctx.state.sync = { mode: "family", familyCode: code, owner };
         ctx.save();
         await syncNow();
         if (ctx.state.sync.lastError) ui.error = ctx.state.sync.lastError;
@@ -236,12 +246,33 @@ export function cloudHandlers(ctx: Ctx, ui: CloudUi, root: HTMLElement, redraw: 
     },
     "cloud-signout"() {
       void run(async () => {
-        if (ctx.state.sync.mode === "account") await signOut();
-        ctx.state.sync = { mode: "none" };
+        const owner = ctx.state.sync.owner;
         ui.view = "menu";
         ui.newCode = null;
+        if (ctx.state.sync.mode !== "account") {
+          // A family code is the only key to that cloud copy and cannot be recovered,
+          // so unlinking never takes the explorers off this device.
+          ctx.state.sync = { mode: "none", owner };
+          ctx.save();
+          ui.message = "This device is unlinked. Progress on this device is kept.";
+          return;
+        }
+        // Get today's progress into the account before it leaves the device.
+        await syncNow();
+        const unsaved = !!ctx.state.sync.lastError;
+        await signOut();
+        if (unsaved) {
+          // Keep the explorers rather than risk losing progress that never reached the
+          // cloud. The recorded owner still stops them reaching a different account.
+          ctx.state.sync = { mode: "none", owner };
+          ctx.save();
+          ui.error = "Signed out, but the latest progress could not be saved to your account, so the explorers are still on this device. Connect to the internet and sign in again to save them.";
+          return;
+        }
+        ctx.state.sync = { mode: "none" };
+        clearAccountData(ctx.state);
         ctx.save();
-        ui.message = "Cloud sync is off. Progress on this device is kept.";
+        ui.message = "Signed out. The explorer profiles are safe in your account and are no longer on this device.";
       });
     },
   };

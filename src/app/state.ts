@@ -86,8 +86,22 @@ export interface SyncSettings {
   familyCode?: string;
   /** Signed-in parent email, for display. */
   email?: string;
+  /**
+   * Who the explorer profiles on this device belong to: `account:<user id>` or
+   * `family:<code>`. It outlives signing out, so signing in as somebody else
+   * clears this device instead of merging two families into one account.
+   */
+  owner?: string;
   lastSyncedAt?: number;
   lastError?: string;
+}
+
+export function accountOwner(userId: string): string {
+  return `account:${userId}`;
+}
+
+export function familyOwner(code: string): string {
+  return `family:${code}`;
 }
 
 export interface AppState {
@@ -179,8 +193,23 @@ export function migrate(raw: unknown): AppState {
   state.sync = { mode: mode === "account" || mode === "family" ? mode : "none" };
   if (typeof s.sync?.familyCode === "string") state.sync.familyCode = s.sync.familyCode;
   if (typeof s.sync?.email === "string") state.sync.email = s.sync.email;
+  if (typeof s.sync?.owner === "string") state.sync.owner = s.sync.owner;
   if (typeof s.sync?.lastSyncedAt === "number") state.sync.lastSyncedAt = s.sync.lastSyncedAt;
   return state;
+}
+
+/**
+ * Remove everything that belongs to a parent account or family: explorer profiles,
+ * the profile being played and the parent PIN. Device-only settings (sound, sync)
+ * are left alone. Used when this device stops belonging to an account, so the next
+ * parent never sees another family's children.
+ */
+export function clearAccountData(state: AppState): void {
+  state.profiles = [];
+  state.currentProfileId = null;
+  state.deleted = {};
+  state.parentPin = null;
+  state.parentPinUpdatedAt = 0;
 }
 
 /** Mark a profile as changed so cloud merges prefer this copy. */

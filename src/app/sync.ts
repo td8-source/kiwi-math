@@ -3,8 +3,12 @@
  * Pull-merge-push on start-up and on demand; debounced pushes after local changes.
  */
 import type { AppState } from "./state";
+import { accountOwner, familyOwner } from "./state";
 import { mergeStates, toCloudState } from "./merge";
-import { cloudConfigured, currentUser, pullAccount, pullFamily, pushAccount, pushFamily } from "./cloud";
+import { cloudConfigured, currentUser, pullAccount, pullFamily, pushAccount, pushFamily, type CloudUser } from "./cloud";
+
+const SIGNED_OUT = "Signed out. Sign in again in the parent area to keep syncing.";
+const WRONG_ACCOUNT = "This device is signed in as a different parent. Sign out and sign in again to keep syncing.";
 
 export type SyncStatus = "off" | "idle" | "syncing" | "error" | "offline";
 
@@ -61,8 +65,19 @@ async function pushOnly(): Promise<void> {
 
 async function pushWithAccount(state: AppState) {
   const user = await currentUser();
-  if (!user) return { ok: false as const, error: "Signed out. Sign in again in the parent area to keep syncing." };
+  if (!user) return { ok: false as const, error: SIGNED_OUT };
+  if (wrongAccount(state, user)) return { ok: false as const, error: WRONG_ACCOUNT };
   return pushAccount(user.id, toCloudState(state));
+}
+
+/**
+ * True when this device holds another parent's explorers. Uploading then would copy
+ * one family's children into another family's account, so every sync stops here
+ * until the parent area is used to sign out and back in.
+ */
+function wrongAccount(state: AppState, user: CloudUser): boolean {
+  const owner = state.sync.owner;
+  return !!owner && owner !== accountOwner(user.id);
 }
 
 function finish(state: AppState, error?: string): void {
@@ -92,10 +107,14 @@ export function syncNow(): Promise<void> {
     let userId: string | null = null;
     if (state.sync.mode === "account") {
       const user = await currentUser();
-      if (!user) return finish(state, "Signed out. Sign in again in the parent area to keep syncing.");
+      if (!user) return finish(state, SIGNED_OUT);
+      if (wrongAccount(state, user)) return finish(state, WRONG_ACCOUNT);
       userId = user.id;
+      // Saves made before owners were recorded belong to whoever is signed in now.
+      state.sync.owner ??= accountOwner(user.id);
       pulled = await pullAccount();
     } else {
+      state.sync.owner ??= familyOwner(state.sync.familyCode ?? "");
       pulled = await pullFamily(state.sync.familyCode ?? "");
     }
     if (!pulled.ok) return finish(state, pulled.error);

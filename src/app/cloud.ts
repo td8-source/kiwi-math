@@ -65,11 +65,12 @@ export async function currentUser(): Promise<CloudUser | null> {
   }
 }
 
-export async function signUp(email: string, password: string): Promise<CloudResult<{ needsConfirmation: boolean }>> {
+export async function signUp(email: string, password: string): Promise<CloudResult<{ needsConfirmation: boolean; user: CloudUser | null }>> {
   try {
     const { data, error } = await (await client()).auth.signUp({ email, password });
     if (error) return fail(error);
-    return { ok: true, value: { needsConfirmation: !data.session } };
+    const user = data.session && data.user ? { id: data.user.id, email: data.user.email ?? email } : null;
+    return { ok: true, value: { needsConfirmation: !data.session, user } };
   } catch (err) {
     return fail(err);
   }
@@ -139,6 +140,33 @@ export async function pullAccount(): Promise<CloudResult<unknown | null>> {
 export async function pushAccount(userId: string, state: unknown): Promise<CloudResult> {
   try {
     const { error } = await (await client()).from("saves").upsert({ user_id: userId, state, updated_at: new Date().toISOString() });
+    if (error) return fail(error);
+    return { ok: true, value: undefined };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ---------- Bug reports ---------- */
+
+export interface ReportRow {
+  summary: string;
+  details: string;
+  /** The issue body, rendered once here so the app and GitHub agree on the wording. */
+  body: string;
+  diagnostics: Record<string, unknown>;
+  app_version: string;
+}
+
+/**
+ * Insert one report. The anon key may insert but never read, so a report cannot be
+ * used to read anybody else's. Signing in is not required: most reporters are parents
+ * without an account.
+ */
+export async function sendReport(row: ReportRow): Promise<CloudResult> {
+  if (!cloudConfigured()) return { ok: false, error: "Reports cannot be sent from this build." };
+  try {
+    const { error } = await (await client()).from("reports").insert(row);
     if (error) return fail(error);
     return { ok: true, value: undefined };
   } catch (err) {

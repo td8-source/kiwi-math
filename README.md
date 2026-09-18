@@ -67,6 +67,8 @@ Two ways to link devices, chosen in the parent area under **Cloud**:
 
 Sync is offline-first. Saves stay local and are merged with the cloud copy on start-up, after each round, and when you press Sync now. Stars, best scores, feathers and gear are combined so nothing earned is lost when two devices disagree; other settings take the newer copy.
 
+One device, more than one family: the device remembers which account or family code its explorers belong to. **Sign out** uploads the latest progress, then removes the explorer profiles and the parent PIN from the device, so the next parent to sign in on a shared or handed-on device sees only their own children. Signing in again brings everything back from the account. If that last upload fails the explorers stay put rather than risk losing unsaved progress, and the device still refuses to merge them into a different account. **Unlink this device** (family codes) always leaves the explorers on the device, because a lost family code cannot be recovered.
+
 ### Setting it up (about 10 minutes, once)
 
 1. Create a free project at [supabase.com](https://supabase.com).
@@ -80,10 +82,32 @@ The publishable (anon) key is safe to commit: it is embedded in the browser buil
 
 What is stored in the cloud: each explorer's first name, age, avatar, settings and progress, plus the parent PIN so it applies on every device. Nothing else.
 
+## Reporting a problem from inside the app
+
+Every screen has a small **Report a problem** button in the bottom corner. It opens a dialog where a parent types what went wrong; the app attaches the context a bug needs and sends it off. Before sending, **Show what is sent with this report** displays the exact text that will be filed.
+
+Attached automatically: the screen the problem happened on and the last few screens before it, the explorer's age and whether unlock-everything is on, how many explorers are on the device, the app version and build, the cloud sync mode and last sync error, the browser, screen size, language and time zone, and any errors the app caught (message, file, line and stack).
+
+Never attached: explorer names, parent emails, family codes, the parent PIN, or anybody's progress. `src/app/diagnostics.ts` builds the payload field by field, and `tests/report.test.ts` fails if any of those leak into a report.
+
+Where reports go:
+
+1. The app inserts a row into the Supabase `reports` table using the public anon key. Row-level security allows inserts and nothing else, so a report can never be used to read other reports.
+2. `.github/workflows/bug-reports.yml` runs hourly, reads new rows with the service-role key and opens one issue per report, labelled `bug` and `from-app`, then marks the row filed so it is never opened twice. It files at most 10 per run, and parks a row that GitHub rejects rather than letting it block the queue.
+3. If cloud sync is not configured, or the insert fails, the dialog offers **Open it on GitHub instead**: the same report as a prefilled new-issue link. That route needs a GitHub account, so it is a fallback rather than the main path.
+
+To turn on step 2, add one repository **Secret** under Settings → Secrets and variables → Actions → Secrets:
+
+| Secret | Where to find it |
+| --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → `service_role`. It bypasses row-level security, so it belongs in a Secret — never in a Variable, a `VITE_` value or a commit. |
+
+The project URL is reused from the existing `SUPABASE_URL` repository Variable. With the secret unset the workflow exits quietly, so forks do nothing. Run it by hand from the Actions tab to test it. Reports are written with the public anon key, so anyone who has the app can insert one; if that is ever abused, drop the insert policy on `public.reports` in the SQL editor and the button falls back to the GitHub link.
+
 ## Development
 
 ```bash
-npm test              # generator, progression, timer and migration tests
+npm test              # generator, progression, timer, migration, account-switching and bug-report tests
 npm run typecheck
 npm run build && npm run screenshots   # headless walkthrough, images in ./screenshots
 

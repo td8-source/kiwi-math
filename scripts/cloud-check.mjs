@@ -19,7 +19,7 @@ await new Promise((r) => server.listen(4180, "127.0.0.1", r));
 await mkdir(OUT, { recursive: true });
 
 // The "cloud": family saves keyed by hash, account saves keyed by user id.
-const cloud = { family: new Map(), saves: new Map(), users: new Map() };
+const cloud = { family: new Map(), saves: new Map(), users: new Map(), reports: [] };
 const calls = [];
 
 async function mockSupabase(context) {
@@ -43,6 +43,7 @@ async function mockSupabase(context) {
     }
     if (url.pathname === "/auth/v1/logout") return json(204, null);
     if (url.pathname === "/auth/v1/user") { const auth = req.headers()["authorization"] ?? ""; const id = auth.replace("Bearer token-", ""); const user = [...cloud.users.values()].find((x) => x.id === id); return user ? json(200, { id: user.id, email: user.email, aud: "authenticated", role: "authenticated", app_metadata: {}, user_metadata: {} }) : json(401, { msg: "no" }); }
+    if (url.pathname === "/rest/v1/reports" && req.method() === "POST") { cloud.reports.push(body); return json(201, []); }
     if (url.pathname === "/rest/v1/saves") {
       const auth = req.headers()["authorization"] ?? "";
       const id = auth.replace("Bearer token-", "");
@@ -193,6 +194,102 @@ expect(namesD.includes("Mia"), `device D received Mia after signing in (${namesD
 await d.click('[data-action="parent"]');
 await d.waitForSelector(".pin-gate");
 expect(await d.$eval(".pin-gate h2", (h) => h.textContent.includes("Enter")), "parent PIN synced to device D");
+
+// --- Switching accounts on one device: parent one's explorers must not follow.
+await d.click('[data-action="back"]');
+await d.waitForSelector(".profile-grid, .land");
+await openCloudTab(d);
+await d.click('[data-action="cloud-signout"]');
+await d.waitForSelector(".cloud-options");
+expect(cloud.saves.get("user-1")?.profiles?.some((p) => p.name === "Mia"), "device D pushed Mia back to the account before signing out");
+await d.click('[data-action="back"]');
+await d.waitForSelector(".welcome-options");
+expect(!(await d.$(".profile-grid")), "signing out removed the explorer picker from device D");
+
+// A second parent signs up on the same device and must start with an empty picker.
+await d.click('[data-action="parent"]');
+await d.waitForSelector(".pin-gate");
+expect(await d.$eval(".pin-gate h2", (h) => h.textContent.includes("Create")), "device D asks the new parent for a fresh PIN");
+for (const k of ["9", "9", "9", "9", "9", "9", "9", "9"]) await d.click(`[data-action="pin"][data-key="${k}"]`);
+await d.waitForSelector(".dash");
+await d.click('[data-action="tab"][data-tab="cloud"]');
+await d.click('[data-action="cloud-view"][data-view="account"]');
+await d.fill("input[name=email]", "other-parent@example.com");
+await d.fill("input[name=password]", "kiwi-pass-456");
+await d.click('[data-action="cloud-signup"]');
+await d.waitForSelector(".cloud-status");
+await d.click('[data-action="back"]');
+await d.waitForSelector(".welcome-options, .profile-grid");
+const namesD2 = await d.$$eval(".profile-card .profile-name", (els) => els.map((e) => e.textContent.trim()));
+expect(!namesD2.includes("Mia"), `the new parent on device D does not see Mia (${namesD2.join(", ") || "no explorers"})`);
+const otherId = [...cloud.users.values()].find((u) => u.email === "other-parent@example.com")?.id;
+const leaked = cloud.saves.get(otherId)?.profiles ?? [];
+expect(!leaked.some((p) => p.name === "Mia"), `Mia was not uploaded into the second account (${leaked.map((p) => p.name).join(", ") || "empty"})`);
+await d.screenshot({ path: join(OUT, "45-cloud-account-switched.png") });
+
+// The first parent signs back in on the same device and gets their explorer back.
+await d.click('[data-action="parent"]');
+await d.waitForSelector(".pin-gate");
+for (const k of ["9", "9", "9", "9"]) await d.click(`[data-action="pin"][data-key="${k}"]`);
+await d.waitForSelector(".dash");
+await d.click('[data-action="tab"][data-tab="cloud"]');
+await d.click('[data-action="cloud-signout"]');
+await d.waitForSelector(".cloud-options");
+await d.click('[data-action="cloud-view"][data-view="account"]');
+await d.fill("input[name=email]", "parent@example.com");
+await d.fill("input[name=password]", "kiwi-pass-123");
+await d.click('[data-action="cloud-signin"]');
+await d.waitForSelector(".cloud-status");
+await d.click('[data-action="back"]');
+await d.waitForSelector(".profile-grid");
+const namesD3 = await d.$$eval(".profile-card .profile-name", (els) => els.map((e) => e.textContent.trim()));
+expect(namesD3.includes("Mia"), `the first parent gets Mia back after signing in again (${namesD3.join(", ") || "no explorers"})`);
+
+// --- Report a problem: the button is on every screen and carries the context with it.
+// Device A is already on the explorer picker from the check above.
+await a.waitForSelector(".profile-grid");
+await a.click(".profile-card[data-action=pick]");
+await a.waitForSelector(".land");
+await a.click(".region-card.pos-0");
+await a.waitForSelector(".trail-list");
+expect(await a.$(".report-fab"), "the report button is there on the region screen");
+await a.click(".report-fab");
+await a.waitForSelector(".report-dialog");
+await a.click('[data-action="report-detail"]');
+await a.waitForSelector(".report-preview");
+await a.screenshot({ path: join(OUT, "48-report-dialog.png") });
+const preview = await a.textContent(".report-preview");
+expect(preview.includes("region:"), "the report says which screen the problem happened on");
+expect(!/Aroha|Tama/.test(preview), "the report does not name any explorer");
+await a.fill("input[name=summary]", "The trail list is empty");
+await a.fill("textarea[name=details]", "Tapped the first region and nothing appeared.");
+await a.click('[data-action="report-send"]');
+await a.waitForSelector(".report-dialog h2:text-is('Thank you!')");
+await a.screenshot({ path: join(OUT, "49-report-sent.png") });
+expect(cloud.reports.length === 1, `the report reached the cloud (${cloud.reports.length} row(s))`);
+const sent = cloud.reports[0] ?? {};
+expect(sent.summary === "The trail list is empty", `the summary was sent (${sent.summary})`);
+expect(sent.body.includes("Tapped the first region"), "the description was sent");
+expect(sent.diagnostics?.screen?.startsWith("region:"), `the screen was captured (${sent.diagnostics?.screen})`);
+expect(sent.diagnostics?.recentScreens?.length > 0, "the screens leading up to it were captured");
+expect(!JSON.stringify(sent).includes("Aroha"), "no explorer name reached the cloud");
+await a.click('[data-action="report-close"]');
+expect(!(await a.$(".report-dialog")), "the dialog closes again");
+
+// When the report cannot be sent, the dialog offers the prefilled GitHub issue instead.
+await a.route("https://mock.supabase.co/rest/v1/reports", (r) => r.abort("failed"));
+await a.click(".report-fab");
+await a.waitForSelector(".report-dialog");
+await a.fill("input[name=summary]", "Sync is down");
+await a.click('[data-action="report-send"]');
+await a.waitForSelector(".report-error");
+const fallback = await a.getAttribute('.report-dialog a[target="_blank"]', "href");
+expect(fallback?.startsWith("https://github.com/td8-source/kiwi-math/issues/new"), `the GitHub fallback link is offered (${fallback?.slice(0, 60)})`);
+const fallbackParams = new URL(fallback ?? "https://example.com").searchParams;
+expect(fallbackParams.get("title") === "Sync is down", `the fallback link carries the summary (${fallbackParams.get("title")})`);
+expect((fallbackParams.get("body") ?? "").includes("region:golden-beach"), "the fallback link carries the context too");
+expect(await a.$('[data-action="report-copy"]'), "the report can be copied out as well");
+await a.screenshot({ path: join(OUT, "50-report-fallback.png") });
 
 await browser.close();
 server.close();
