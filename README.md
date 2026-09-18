@@ -102,7 +102,7 @@ To turn on step 2, add one repository **Secret** under Settings → Secrets and 
 | --- | --- |
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → `service_role`. It bypasses row-level security, so it belongs in a Secret — never in a Variable, a `VITE_` value or a commit. |
 
-The project URL is reused from the existing `SUPABASE_URL` repository Variable. With the secret unset the workflow exits quietly, so forks do nothing. Run it by hand from the Actions tab to test it. Reports are written with the public anon key, so anyone who has the app can insert one; if that is ever abused, drop the insert policy on `public.reports` in the SQL editor and the button falls back to the GitHub link.
+The project URL is read from the committed `.env`, so there is nothing else to set. With the secret unset the workflow exits quietly, so forks do nothing; with the secret set but no URL to be found it fails loudly rather than reporting success while reports sit unfiled. Run it by hand from the Actions tab to test it. Reports are written with the public anon key, so anyone who has the app can insert one; if that is ever abused, drop the insert policy on `public.reports` in the SQL editor and the button falls back to the GitHub link.
 
 ## Development
 
