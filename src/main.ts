@@ -7,6 +7,7 @@ import { cancelSpeech, setNarrationEnabled } from "./app/speech";
 import { timeIsUp } from "./app/timer";
 import { touch } from "./app/state";
 import { initSync, schedulePush, syncNow } from "./app/sync";
+import { initDiagnostics, noteScreen } from "./app/diagnostics";
 import { passwordRecoveryPending } from "./app/cloud";
 import { renderProfiles, renderNewProfile } from "./screens/profiles";
 import { renderMap } from "./screens/map";
@@ -16,10 +17,13 @@ import { renderShop } from "./screens/shop";
 import { renderParent } from "./screens/parent";
 import { renderTimeUp } from "./screens/timeup";
 import { renderLink, renderSaveOnline, renderWelcome } from "./screens/welcome";
+import { mountReportButton } from "./screens/report";
 
 async function boot(): Promise<void> {
   const root = document.getElementById("app");
   if (!root) throw new Error("Missing #app root");
+  // Start catching errors before anything else, so a crash during boot is still reportable.
+  initDiagnostics();
   const state: AppState = await loadState();
 
   const ctx: Ctx = {
@@ -63,6 +67,7 @@ async function boot(): Promise<void> {
     cancelSpeech();
     applySettings();
     ctx.route = route;
+    noteScreen(route);
     window.scrollTo(0, 0);
     switch (route.name) {
       case "welcome": return renderWelcome(ctx);
@@ -92,6 +97,9 @@ async function boot(): Promise<void> {
       document.querySelectorAll<HTMLElement>(".sync-pill").forEach((el) => { el.dataset.status = status; });
     },
   });
+
+  // Lives outside #app, so the button stays put through every screen change.
+  mountReportButton(ctx);
 
   const recovery = await passwordRecoveryPending();
   render(recovery ? { name: "link" } : ctx.currentProfile() ? { name: "map" } : { name: "profiles" });

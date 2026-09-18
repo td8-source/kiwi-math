@@ -147,6 +147,33 @@ export async function pushAccount(userId: string, state: unknown): Promise<Cloud
   }
 }
 
+/* ---------- Bug reports ---------- */
+
+export interface ReportRow {
+  summary: string;
+  details: string;
+  /** The issue body, rendered once here so the app and GitHub agree on the wording. */
+  body: string;
+  diagnostics: Record<string, unknown>;
+  app_version: string;
+}
+
+/**
+ * Insert one report. The anon key may insert but never read, so a report cannot be
+ * used to read anybody else's. Signing in is not required: most reporters are parents
+ * without an account.
+ */
+export async function sendReport(row: ReportRow): Promise<CloudResult> {
+  if (!cloudConfigured()) return { ok: false, error: "Reports cannot be sent from this build." };
+  try {
+    const { error } = await (await client()).from("reports").insert(row);
+    if (error) return fail(error);
+    return { ok: true, value: undefined };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 /* ---------- Family codes ---------- */
 
 export async function pullFamily(code: string): Promise<CloudResult<unknown | null>> {

@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
 
 // Tauri expects a fixed port and no HMR overlay stealing focus from the game.
 // When built for GitHub Pages the app is served from a subpath
@@ -15,6 +18,11 @@ for (const key of ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"]) {
 export default defineConfig({
   base,
   clearScreen: false,
+  // Bug reports say which build they came from; GITHUB_SHA is set by CI.
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_SHA__: JSON.stringify((process.env.GITHUB_SHA ?? "local").slice(0, 7)),
+  },
   server: {
     port: 1420,
     strictPort: true,

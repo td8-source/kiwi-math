@@ -51,3 +51,32 @@ revoke all on function public.family_pull(text) from public;
 revoke all on function public.family_push(text, jsonb) from public;
 grant execute on function public.family_pull(text) to anon, authenticated;
 grant execute on function public.family_push(text, jsonb) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Bug reports from the in-app "Report a problem" button.
+-- The anon key may insert, and nothing else: there is no select, update or delete
+-- policy, so a report cannot be used to read anybody else's. A scheduled GitHub
+-- Action (.github/workflows/bug-reports.yml) reads new rows with the service-role
+-- key and opens an issue for each one.
+create table if not exists public.reports (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  summary text not null check (char_length(summary) between 1 and 200),
+  details text not null default '' check (char_length(details) <= 4000),
+  body text not null default '' check (char_length(body) <= 20000),
+  diagnostics jsonb not null default '{}'::jsonb check (char_length(diagnostics::text) <= 20000),
+  app_version text not null default '' check (char_length(app_version) <= 40),
+  status text not null default 'new' check (status in ('new', 'filed', 'failed')),
+  issue_number integer,
+  filed_at timestamptz
+);
+
+create index if not exists reports_new_idx on public.reports (created_at) where status = 'new';
+
+alter table public.reports enable row level security;
+
+drop policy if exists "anyone can report a problem" on public.reports;
+create policy "anyone can report a problem" on public.reports
+  for insert
+  to anon, authenticated
+  with check (true);

@@ -82,10 +82,33 @@ The publishable (anon) key is safe to commit: it is embedded in the browser buil
 
 What is stored in the cloud: each explorer's first name, age, avatar, settings and progress, plus the parent PIN so it applies on every device. Nothing else.
 
+## Reporting a problem from inside the app
+
+Every screen has a small **Report a problem** button in the bottom corner. It opens a dialog where a parent types what went wrong; the app attaches the context a bug needs and sends it off. Before sending, **Show what is sent with this report** displays the exact text that will be filed.
+
+Attached automatically: the screen the problem happened on and the last few screens before it, the explorer's age and whether unlock-everything is on, how many explorers are on the device, the app version and build, the cloud sync mode and last sync error, the browser, screen size, language and time zone, and any errors the app caught (message, file, line and stack).
+
+Never attached: explorer names, parent emails, family codes, the parent PIN, or anybody's progress. `src/app/diagnostics.ts` builds the payload field by field, and `tests/report.test.ts` fails if any of those leak into a report.
+
+Where reports go:
+
+1. The app inserts a row into the Supabase `reports` table using the public anon key. Row-level security allows inserts and nothing else, so a report can never be used to read other reports.
+2. `.github/workflows/bug-reports.yml` runs hourly, reads new rows with the service-role key and opens one issue per report, labelled `bug` and `from-app`, then marks the row filed so it is never opened twice. It files at most 10 per run, and parks a row that GitHub rejects rather than letting it block the queue.
+3. If cloud sync is not configured, or the insert fails, the dialog offers **Open it on GitHub instead**: the same report as a prefilled new-issue link. That route needs a GitHub account, so it is a fallback rather than the main path.
+
+To turn on step 2, add two repository **Secrets** (not Variables, since the service-role key is not public):
+
+| Secret | Where to find it |
+| --- | --- |
+| `SUPABASE_URL` | Project Settings → API → Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → `service_role`. Never commit this key or put it in a `VITE_` variable. |
+
+With the secrets unset the workflow exits quietly, so forks do nothing. Run it by hand from the Actions tab to test it. Reports are written with the public anon key, so anyone who has the app can insert one; if that is ever abused, drop the insert policy on `public.reports` in the SQL editor and the button falls back to the GitHub link.
+
 ## Development
 
 ```bash
-npm test              # generator, progression, timer, migration and account-switching tests
+npm test              # generator, progression, timer, migration, account-switching and bug-report tests
 npm run typecheck
 npm run build && npm run screenshots   # headless walkthrough, images in ./screenshots
 
