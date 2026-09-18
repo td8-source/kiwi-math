@@ -34,9 +34,13 @@ function tenFrame(count: number, second = 0, frames = 1): Raw {
   return raw(`<div class="tenframes">${out.join("")}</div>`);
 }
 
-function objectsGrid(v: { item: ItemKind; count: number; crossed?: number }): Raw {
+function objectsGrid(v: { item: ItemKind; count: number; crossed?: number; counted?: number }): Raw {
   const perRow = v.count <= 10 ? 5 : 10;
-  const cells = Array.from({ length: v.count }, (_, i) => `<div class="obj ${v.crossed !== undefined && i >= v.count - v.crossed ? "crossed" : ""}">${itemSvg(v.item).value}</div>`);
+  const cells = Array.from({ length: v.count }, (_, i) => {
+    const crossed = v.crossed !== undefined && i >= v.count - v.crossed;
+    const counted = v.counted !== undefined && i < v.counted;
+    return `<div class="obj ${crossed ? "crossed" : ""} ${counted ? "counted" : ""}">${itemSvg(v.item).value}${counted ? `<span class="obj-tick">${i + 1}</span>` : ""}</div>`;
+  });
   return raw(`<div class="objects cols-${perRow}">${cells.join("")}</div>`);
 }
 
@@ -74,7 +78,7 @@ function fraction(v: Extract<Visual, { kind: "fraction" }>, small: boolean): Raw
 function arrayGrid(v: Extract<Visual, { kind: "array" }>): Raw {
   const cell = v.item ? itemSvg(v.item, "item small").value : `<span class="dot"></span>`;
   const cols = Math.max(v.rows, v.cols);
-  return raw(`<div class="array" style="grid-template-columns: repeat(${cols}, 1fr)">${Array.from({ length: v.rows * v.cols }, () => `<div class="array-cell">${cell}</div>`).join("")}</div>`);
+  return raw(`<div class="array" style="grid-template-columns: repeat(${cols}, 1fr)">${Array.from({ length: v.rows * v.cols }, (_, i) => `<div class="array-cell ${v.counted !== undefined && i < v.counted ? "counted" : ""}">${cell}</div>`).join("")}</div>`);
 }
 
 function sequence(values: readonly (number | null)[]): Raw {

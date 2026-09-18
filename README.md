@@ -82,6 +82,19 @@ The publishable (anon) key is safe to commit: it is embedded in the browser buil
 
 What is stored in the cloud: each explorer's first name, age, avatar, settings and progress, plus the parent PIN so it applies on every device. Nothing else.
 
+## When a child gets stuck
+
+Every question carries an authored `hint`, shown and spoken after a first wrong answer, and an `explain`, shown when the answer is revealed after a second. Beyond that, the reveal offers **Show me how**: a worked example that counts the problem through on the picture the child was already looking at.
+
+A walkthrough is data, not animation code. `src/app/showme.ts` turns a question into a list of steps, each one an ordinary `Visual` plus a short caption, so every step renders through `src/ui/visuals.ts` exactly as a question does. Counting steps advance on a rhythm a child can count along with; the last step waits for them.
+
+Two rules keep it honest:
+
+- **It is only offered after the answer is already on screen.** A child cannot use it to get an answer, and the round has already been recorded, so first-try accuracy in the parent dashboard still means what it says.
+- **It only appears when the strategy can be checked against the question's own answer.** Counting on from 7 is offered for `7 + 3` only because 7 + 3 really is 10. Where no strategy can be verified — shapes, clocks, rounding — there is no button, and the authored hint stands alone. `tests/showme.test.ts` runs the builder over every question the curriculum can generate and fails if any walkthrough would end anywhere but the right answer.
+
+This covers the counting, adding, taking away, skip counting, sequence and array questions — the Year 1 to 2 number core, where children get stuck most. Run `npm run build && npm run showme:check` to drive it in a real browser.
+
 ## Reporting a problem from inside the app
 
 Every screen has a small **Report a problem** button in the bottom corner. It opens a dialog where a parent types what went wrong; the app attaches the context a bug needs and sends it off. Before sending, **Show what is sent with this report** displays the exact text that will be filed.
@@ -107,7 +120,8 @@ The project URL is read from the committed `.env`, so there is nothing else to s
 ## Development
 
 ```bash
-npm test              # generator, progression, timer, migration, account-switching and bug-report tests
+npm test              # generator, progression, timer, migration, account-switching,
+                      # worked-example and bug-report tests
 npm run typecheck
 npm run build && npm run screenshots   # headless walkthrough, images in ./screenshots
 

@@ -15,7 +15,8 @@
     "app:dev": "tauri dev",
     "app:build": "tauri build",
     "screenshots": "node scripts/screenshots.mjs",
-    "cloud:check": "node scripts/cloud-check.mjs"
+    "cloud:check": "node scripts/cloud-check.mjs",
+    "showme:check": "node scripts/showme-check.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

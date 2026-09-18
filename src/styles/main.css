@@ -554,3 +554,31 @@ p { margin: 0; }
   max-height: 220px; overflow: auto; font-size: 0.75rem; line-height: 1.45;
   white-space: pre-wrap; word-break: break-word; -webkit-user-select: text; user-select: text;
 }
+
+/* ---------- Show me how ---------- */
+.obj.counted .item, .array-cell.counted { animation: counted-pop 260ms ease-out; }
+.obj.counted::before, .array-cell.counted::before {
+  content: ""; position: absolute; inset: -4px; border-radius: 14px;
+  border: 3px solid var(--primary); background: rgba(249, 115, 22, 0.12);
+}
+.array-cell { position: relative; }
+.obj-tick {
+  position: absolute; top: -8px; right: -6px; z-index: 1;
+  min-width: 22px; height: 22px; padding: 0 4px; border-radius: 999px;
+  background: var(--primary); color: #fff; font-size: 0.8rem; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+}
+@keyframes counted-pop { from { transform: scale(0.82); } to { transform: scale(1); } }
+
+.question-area.walking .visual { min-height: 180px; }
+.showme {
+  background: #fff; border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px 20px; margin-top: 12px; text-align: center;
+}
+.showme-caption { margin: 0 0 12px; font-size: 1.6rem; font-weight: 800; color: var(--ink); }
+.showme-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.showme-actions .btn.ghost { background: #f1f5f9; color: var(--ink); }
+.feedback-actions { justify-content: center; margin-top: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .obj.counted .item, .array-cell.counted { animation: none; }
+}

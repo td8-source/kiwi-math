@@ -33,9 +33,14 @@ export type CreatureName = "kiwi" | "tui" | "fantail" | "weta" | "tuatara" | "ke
 
 export type PatternToken = { shape: "circle" | "square" | "triangle" | "star" | "heart"; colour: string };
 
-/** Visual shown above the question prompt (or inside an answer option when small). */
+/**
+ * Visual shown above the question prompt (or inside an answer option when small).
+ *
+ * `counted` on the countable visuals marks how many have been counted so far. Questions
+ * never set it; the worked examples in app/showme.ts use it to count along with a child.
+ */
 export type Visual =
-  | { kind: "objects"; item: ItemKind; count: number; crossed?: number }
+  | { kind: "objects"; item: ItemKind; count: number; crossed?: number; counted?: number }
   | { kind: "groups"; item: ItemKind; groups: readonly number[]; operator?: "+" | "-" | "×" }
   | { kind: "tenframe"; count: number; frames?: number; secondColour?: number }
   | { kind: "dots"; count: number; pattern: "dice" | "scatter" | "line" }
@@ -43,7 +48,7 @@ export type Visual =
   | { kind: "blocks"; hundreds?: number; tens: number; ones: number }
   | { kind: "expression"; text: string }
   | { kind: "fraction"; parts: number; shaded: number; shape: "circle" | "bar" }
-  | { kind: "array"; rows: number; cols: number; item?: ItemKind }
+  | { kind: "array"; rows: number; cols: number; item?: ItemKind; counted?: number }
   | { kind: "sequence"; values: readonly (number | null)[] }
   | { kind: "hundredchart"; start: number; hidden: readonly number[]; size?: number }
   | { kind: "text"; text: string }

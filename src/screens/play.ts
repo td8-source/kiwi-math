@@ -3,6 +3,7 @@ import { TIER_NAMES, trailRound, findTrail, findRegion, rescueRound } from "../c
 import type { Question, Tier } from "../curriculum/types";
 import { teReoNumber } from "../curriculum/helpers";
 import { recordRound, type AnswerRecord, type RoundOutcome } from "../app/progress";
+import { workedExample, type ShowStep } from "../app/showme";
 import { sfx } from "../app/audio";
 import { cancelSpeech, speak } from "../app/speech";
 import { allowedTodayMs, playedTodayMs } from "../app/timer";
@@ -24,6 +25,9 @@ interface Session {
   phase: "question" | "feedback-right" | "feedback-retry" | "feedback-reveal" | "done" | "leave";
   outcome?: RoundOutcome;
   timer?: number;
+  /** The "Show me how" walkthrough, once a child asks for it. */
+  show?: { steps: ShowStep[]; at: number };
+  showTimer?: number;
 }
 
 const PRAISE = ["Ka pai!", "Tino pai!", "Yes! Well done!", "Brilliant!", "You've got it!", "Ka rawe!"];
@@ -45,7 +49,10 @@ export function renderPlay(ctx: Ctx, route: PlayRoute): void {
   const current = (): Question => s.questions[s.index] as Question;
   const canAnswer = (): boolean => s.phase === "question" || s.phase === "feedback-retry";
   const clearTimer = (): void => { if (s.timer) { window.clearTimeout(s.timer); s.timer = undefined; } };
+  const clearShowTimer = (): void => { if (s.showTimer) { window.clearTimeout(s.showTimer); s.showTimer = undefined; } };
   const useReo = (): boolean => ctx.profile().settings.teReo;
+  /** Only offered once the answer is on screen, so it can never be used to get one. */
+  const canShow = (): boolean => s.phase === "feedback-reveal" && !!workedExample(current());
 
   const outOfTime = (): boolean => {
     const p = ctx.profile();
@@ -61,10 +68,12 @@ export function renderPlay(ctx: Ctx, route: PlayRoute): void {
   const startQuestion = (): void => {
     clearTimer();
     if (s.index > 0 && outOfTime()) return finish(true);
+    clearShowTimer();
     s.attempt = 1;
     s.typed = "";
     s.phase = "question";
     s.visualHidden = false;
+    s.show = undefined;
     const q = current();
     if (q.flash) s.timer = window.setTimeout(() => { s.visualHidden = true; draw(); }, q.flash);
     draw();
@@ -128,11 +137,41 @@ export function renderPlay(ctx: Ctx, route: PlayRoute): void {
     }
   };
 
+  /**
+   * Walk through the strategy, after the answer has already been revealed. Counting
+   * steps advance on their own so a child can count along; the last one waits.
+   */
+  const showStep = (): void => {
+    clearShowTimer();
+    const step = s.show?.steps[s.show.at];
+    if (!step) return;
+    draw();
+    if (ctx.profile().settings.narration) speak(step.say ?? step.caption);
+    if (step.hold) s.showTimer = window.setTimeout(advanceShow, step.hold);
+  };
+
+  const advanceShow = (): void => {
+    if (!s.show) return;
+    if (s.show.at + 1 >= s.show.steps.length) { clearShowTimer(); return; }
+    s.show.at += 1;
+    showStep();
+  };
+
+  const startShow = (): void => {
+    const steps = workedExample(current());
+    if (!steps?.length) return;
+    sfx.tap();
+    s.show = { steps, at: 0 };
+    showStep();
+  };
+
   const draw = (): void => {
     if (s.phase === "done" && s.outcome) return drawResults(s.outcome);
     if (s.phase === "leave") return drawLeave();
     const q = current();
     const answered = s.phase !== "question" && s.phase !== "feedback-retry";
+    const step = s.show?.steps[s.show.at];
+    const lastStep = !!s.show && s.show.at + 1 >= s.show.steps.length;
     const showVisual = q.visual && !(s.visualHidden && s.phase === "question");
     const optionsHtml = q.mode === "numpad"
       ? numpadHtml(s.typed, answered, useReo())
@@ -156,16 +195,28 @@ export function renderPlay(ctx: Ctx, route: PlayRoute): void {
           ${s.results.map((r, i) => html`<span class="shell ${r ?? ""} ${i === s.index ? "current" : ""}"></span>`)}
         </div>
       </header>
-      <main class="question-area ${s.phase}">
-        ${q.visual ? html`<div class="visual ${q.flash ? "flash" : ""}">${showVisual ? renderVisual(q.visual) : html`<div class="peek-gone">Gone! How many were there?</div>`}</div>` : ""}
+      <main class="question-area ${s.phase} ${step ? "walking" : ""}">
+        ${step
+          ? html`<div class="visual showme-visual">${step.visual ? renderVisual(step.visual) : ""}</div>`
+          : q.visual ? html`<div class="visual ${q.flash ? "flash" : ""}">${showVisual ? renderVisual(q.visual) : html`<div class="peek-gone">Gone! How many were there?</div>`}</div>` : ""}
         <h2 class="prompt">
           <button class="say-btn" data-action="say" title="Read it to me" aria-label="Read the question aloud">${speakerSvg()}</button>
           <span>${q.prompt}</span>
         </h2>
-        ${s.phase === "feedback-retry" ? html`<div class="feedback retry"><strong>Not quite.</strong> ${q.hint ?? "Have another go!"}</div>` : ""}
-        ${s.phase === "feedback-right" ? html`<div class="feedback right">${s.attempt === 1 ? raw(`${featherSvg("feather inline")} ${PRAISE[s.index % PRAISE.length]}`) : "That's it!"}</div>` : ""}
-        ${s.phase === "feedback-reveal" ? html`<div class="feedback reveal"><strong>The answer is ${q.answer}.</strong> ${q.explain ?? q.hint ?? ""}<button class="btn primary" data-action="next">Next ›</button></div>` : ""}
-        ${optionsHtml}
+        ${step
+          ? html`<div class="showme" role="status" aria-live="polite">
+              <p class="showme-caption">${step.caption}</p>
+              <div class="showme-actions">
+                ${lastStep
+                  ? html`<button class="btn primary big" data-action="next">Got it! ›</button>`
+                  : html`<button class="btn primary big" data-action="show-next">Next ›</button><button class="btn ghost" data-action="show-skip">Skip</button>`}
+              </div>
+            </div>`
+          : html`
+            ${s.phase === "feedback-retry" ? html`<div class="feedback retry"><strong>Not quite.</strong> ${q.hint ?? "Have another go!"}</div>` : ""}
+            ${s.phase === "feedback-right" ? html`<div class="feedback right">${s.attempt === 1 ? raw(`${featherSvg("feather inline")} ${PRAISE[s.index % PRAISE.length]}`) : "That's it!"}</div>` : ""}
+            ${s.phase === "feedback-reveal" ? html`<div class="feedback reveal"><strong>The answer is ${q.answer}.</strong> ${q.explain ?? q.hint ?? ""}<div class="chip-row feedback-actions">${canShow() ? html`<button class="btn" data-action="show-me">Show me how</button>` : ""}<button class="btn primary" data-action="next">Next ›</button></div></div>` : ""}
+            ${optionsHtml}`}
       </main>
     `.value;
   };
@@ -213,12 +264,15 @@ export function renderPlay(ctx: Ctx, route: PlayRoute): void {
     },
     go() { if (s.typed) submit(s.typed); },
     say() { const q = current(); speak(q.say ?? q.prompt); },
-    next() { next(); },
-    leave() { clearTimer(); cancelSpeech(); s.phase = "leave"; draw(); },
+    next() { clearShowTimer(); next(); },
+    "show-me"() { startShow(); },
+    "show-next"() { sfx.tap(); advanceShow(); },
+    "show-skip"() { clearShowTimer(); cancelSpeech(); s.show = undefined; draw(); },
+    leave() { clearTimer(); clearShowTimer(); cancelSpeech(); s.phase = "leave"; draw(); },
     stay() { s.phase = "question"; startQuestion(); },
-    region() { clearTimer(); ctx.go({ name: "region", regionId: region.id }); },
-    map() { clearTimer(); ctx.go({ name: "map" }); },
-    again() { clearTimer(); ctx.go(route); },
+    region() { clearTimer(); clearShowTimer(); ctx.go({ name: "region", regionId: region.id }); },
+    map() { clearTimer(); clearShowTimer(); ctx.go({ name: "map" }); },
+    again() { clearTimer(); clearShowTimer(); ctx.go(route); },
   });
 
   const onKey = (ev: KeyboardEvent): void => {
