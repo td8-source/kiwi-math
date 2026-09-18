@@ -2,21 +2,42 @@
  * Turns rows from the Supabase `reports` table into GitHub issues, then marks them
  * filed so they are never opened twice. Run by .github/workflows/bug-reports.yml.
  *
- * Needs: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GITHUB_TOKEN, GITHUB_REPOSITORY.
+ * Needs: SUPABASE_SERVICE_ROLE_KEY, GITHUB_TOKEN, GITHUB_REPOSITORY. The project URL
+ * comes from the committed .env, the same value the app is built with; SUPABASE_URL
+ * overrides it when the two should differ.
  * Reads at most MAX_PER_RUN rows per run, so a flood of reports cannot turn into a
  * flood of issues; the rest wait for the next run.
  */
+import { readFileSync } from "node:fs";
 const MAX_PER_RUN = Number(process.env.MAX_PER_RUN ?? 10);
 const LABELS = (process.env.REPORT_LABELS ?? "bug,from-app").split(",").map((l) => l.trim()).filter(Boolean);
 
-const url = (process.env.SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
+/** The project URL lives in the committed .env, so CI needs no variable for it. */
+function urlFromEnvFile() {
+  try {
+    const text = readFileSync(new URL("../.env", import.meta.url), "utf8");
+    return (/^\s*VITE_SUPABASE_URL\s*=\s*(.*)$/m.exec(text)?.[1] ?? "").trim().replace(/^["']|["']$/g, "");
+  } catch {
+    return "";
+  }
+}
+
+/** Accepts the plain project URL or a pasted REST endpoint, as the app does. */
+const projectUrl = (raw) => raw.trim().replace(/\/(rest|auth|storage|realtime|functions)\/v1\/?$/, "").replace(/\/+$/, "");
+
+const url = projectUrl((process.env.SUPABASE_URL ?? "").trim() || urlFromEnvFile());
 const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
 const token = (process.env.GITHUB_TOKEN ?? "").trim();
 const repo = (process.env.GITHUB_REPOSITORY ?? "").trim();
 const api = (process.env.GITHUB_API_URL ?? "https://api.github.com").replace(/\/+$/, "");
 
-if (!url || !key) { console.log("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set; nothing to do."); process.exit(0); }
+// No key at all means the feature is not switched on here (a fork, say): say so and stop.
+if (!key) { console.log("SUPABASE_SERVICE_ROLE_KEY is not set; nothing to do."); process.exit(0); }
+// A key with no URL is a misconfiguration, not an idle run, so fail loudly rather than
+// reporting success while every report sits unfiled.
+if (!url) { console.error("No Supabase project URL. Set VITE_SUPABASE_URL in .env, or a SUPABASE_URL secret."); process.exit(1); }
 if (!token || !repo) { console.error("GITHUB_TOKEN and GITHUB_REPOSITORY are required."); process.exit(1); }
+console.log(`Reading reports from ${url}`);
 
 const db = async (path, init = {}) => {
   const res = await fetch(`${url}/rest/v1/${path}`, {

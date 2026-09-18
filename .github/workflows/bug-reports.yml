@@ -7,9 +7,9 @@ name: File in-app bug reports
 #   SUPABASE_SERVICE_ROLE_KEY    Project Settings -> API -> service_role. Never commit it,
 #                                and never put it in a repository Variable: unlike the anon
 #                                key it bypasses row-level security.
-# The project URL is reused from the SUPABASE_URL repository Variable the app is built
-# with; a SUPABASE_URL secret overrides it if you would rather not expose the URL.
-# With neither set the job exits quietly, so a fork does nothing.
+# The project URL is read from the committed .env, the same value the app is built with,
+# so nothing else needs setting. A SUPABASE_URL secret or variable overrides it.
+# With the secret unset the job exits quietly, so a fork does nothing.
 
 on:
   schedule:
